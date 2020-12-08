@@ -1,0 +1,10 @@
+<campaigns>
+	<entry>
+			<cid>28fc34fa-51be-4518-a7be-656cbdf01ae7</cid>
+			<when>1472066003992</when>
+			<url>http://webmail.securitydept.org/joboffer/?id=%TOKEN%</url>
+			<attachment></attachment>
+			<template>/root/PCA/Week1/week_1_template.txt</template>
+			<subject>Vacancy Job Offer For You!!</subject>
+	</entry>
+</campaigns>

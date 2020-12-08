@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+"""Tool to view and manage Phishing Campaign Assessment (PCA) data.
+
+Usage:
+  pca-tool [--section SECTION] list-customers
+  pca-tool [--section SECTION] list-assessments CUSTOMER_ID
+  pca-tool [--section SECTION] list-campaigns ASSESSMENT_ID
+  pca-tool [--section SECTION] list-templates
+  pca-tool [--section SECTION] [--force] assign-template TEMPLATE_ID <CAMPAIGN_ID>...
+  pca-tool [--section SECTION] (export-template | delete-template) TEMPLATE_ID
+  pca-tool [--section SECTION] list-images [landing-page | sent-email | link-warning]
+  pca-tool [--section SECTION] [--force] assign-image IMAGE_ID (landing-page | sent-email | link-warning) <CAMPAIGN_ID>...
+  pca-tool [--section SECTION] (export-image | delete-image) IMAGE_ID
+  pca-tool (-h | --help)
+  pca-tool --version
+
+Options:
+  -s SECTION --section=SECTION   Configuration section to use.
+  -f --force                     Force overwrite of existing template/image assigned to campaign(s).
+  -h --help                      Show this screen.
+  --version                      Show version.
+"""
+
+from docopt import docopt
+
+args = docopt(__doc__, version="v0.0.1")
+from pca.db.database import connect_from_config
+
+connect_from_config(
+    args["--section"]
+)  # Must connect to the DB before we can import our MongoModels
+from pca.db.database_model import *
+
+import sys
+import pymongo
+from pymodm.errors import DoesNotExist
+import os
+from collections import defaultdict
+from bson import ObjectId
+from bson.errors import InvalidId
+import yaml
+
+from pca.util import util
+
+
+def output_customers():
+    customers = list(CustomerDoc.objects.raw({}).order_by([("_id", pymongo.ASCENDING)]))
+    if customers:
+        print("customer_id,name,acronym")
+        for customer in customers:
+            print("{0._id},{0.name},{0.acronym}".format(customer))
+    else:
+        print("No customers in DB!")
+    return True
+
+
+def output_assessments(customer_id):
+    if not CustomerDoc.objects.raw({"_id": customer_id}).count():
+        print("Customer does not exist: {}".format(customer_id))
+        return False
+
+    assessments = list(
+        AssessmentDoc.objects.raw({"customer": customer_id}).order_by(
+            [("start_time", pymongo.ASCENDING)]
+        )
+    )
+    if assessments:
+        print("assessment_id,customer_id,team_lead,start_time,end_time")
+        for assessment in assessments:
+            print(
+                "{0._id},{0.customer._id},{0.team_lead},{0.start_time},{0.end_time}".format(
+                    assessment
+                )
+            )
+    else:
+        print("Customer {} has no assessments in DB!".format(customer_id))
+    return True
+
+
+def output_campaigns(assessment_id):
+    if not AssessmentDoc.objects.raw({"_id": assessment_id}).count():
+        print("Assessment does not exist: {}".format(assessment_id))
+        return False
+
+    campaigns = list(
+        CampaignDoc.objects.raw({"assessment": assessment_id}).order_by(
+            [("start_time", pymongo.ASCENDING)]
+        )
+    )
+    if campaigns:
+        print(
+            "campaign_id,assessment_id,customer_id,start_time,end_time,template_id,complexity,subject,landing_page_image_id,sent_email_image_id,link_warning_image_id,users"
+        )
+        for campaign in campaigns:
+            print(
+                '{0._id},{0.assessment._id},{0.customer._id},{0.start_time},{0.end_time},{0.template._id},{0.template.complexity},"{0.subject}",{1},{2},{3},{4}'.format(
+                    campaign,
+                    campaign.images.get("landing-page"),
+                    campaign.images.get("sent-email"),
+                    campaign.images.get("link-warning"),
+                    len(campaign.users),
+                )
+            )
+    else:
+        print("Assessment {} has no campaigns in DB!".format(assessment_id))
+    return True
+
+
+def output_templates():
+    templates = list(
+        TemplateDoc.objects.raw({}).order_by(
+            [("complexity", pymongo.ASCENDING), ("name", pymongo.ASCENDING)]
+        )
+    )
+    if templates:
+        print("_id,name,complexity,campaigns_using_template")
+        for template in templates:
+            num_campaigns_using_template = CampaignDoc.objects.raw(
+                {"template": template._id}
+            ).count()
+            print(
+                '{0._id},"{0.name}",{0.complexity},{1}'.format(
+                    template, num_campaigns_using_template
+                )
+            )
+    else:
+        print("No templates in DB!")
+    return True
+
+
+def assign_template_to_campaigns(template_id, campaign_id_list, force=False):
+    try:
+        template = TemplateDoc.objects.raw({"_id": ObjectId(template_id)}).first()
+    except InvalidId:
+        print("Template id is invalid: {}".format(template_id))
+        return False
+    except DoesNotExist:
+        print("Template id does not exist: {}".format(template_id))
+        return False
+
+    for campaign_id in campaign_id_list:
+        try:
+            campaignDoc = CampaignDoc.objects.raw({"_id": campaign_id}).first()
+        except DoesNotExist:
+            print(
+                "Cannot assign template, campaign does not exist: {}\n".format(
+                    campaign_id
+                )
+            )
+            continue
+
+        if campaignDoc.template and not force:
+            print(
+                "Cannot assign template {} to campaign {}".format(
+                    template_id, campaign_id
+                )
+            )
+            print("template previously assigned:")
+            print("       _id: {}".format(campaignDoc.template._id))
+            print("      name: {}".format(campaignDoc.template.name))
+            print("complexity: {}".format(campaignDoc.template.complexity))
+            print("  imported: {}".format(campaignDoc.template._id.generation_time))
+            print("Use --force to replace the previous template with this one.\n")
+            continue
+        else:
+            campaignDoc.template = ObjectId(template_id)
+            campaignDoc.save()
+            print(
+                "Successfully assigned template {} to campaign: {}\n".format(
+                    template_id, campaignDoc._id
+                )
+            )
+    return True
+
+
+def export_template(template_id):
+    try:
+        template = TemplateDoc.objects.raw({"_id": ObjectId(template_id)}).first()
+    except InvalidId:
+        print("Template id is invalid: {}".format(template_id))
+        return False
+    except DoesNotExist:
+        print("Template id does not exist: {}".format(template_id))
+        return False
+
+    # YAML is unordered; this is a hacky way to order it in the way we want; otherwise, could use yaml.dump()
+    for key in ("name", "text", "appearance", "sender", "relevancy", "behavior"):
+        current_field_value = getattr(template, key)
+        if type(current_field_value) == dict:
+            print("{}:".format(key))
+            for k, v in current_field_value.items():
+                print("  {}: {}".format(k, v))
+        else:
+            if key == "text":
+                print("text: |")
+                print(
+                    "  {}".format("\n  ".join(current_field_value.split("\n")))
+                )  # Indent each line of text
+            else:
+                print("{}: {}".format(key, current_field_value))
+    return True
+
+
+def delete_template(template_id):
+    try:
+        template = TemplateDoc.objects.raw({"_id": ObjectId(template_id)}).first()
+    except InvalidId:
+        print("Template id is invalid: {}".format(template_id))
+        return False
+    except DoesNotExist:
+        print("Template id does not exist: {}".format(template_id))
+        return False
+
+    campaigns_using_template = list(CampaignDoc.objects.raw({"template": template._id}))
+    if len(campaigns_using_template):
+        print(
+            'Template {} ("{}") is currently assigned to the following {} campaign(s):'.format(
+                template._id, template.name, len(campaigns_using_template)
+            )
+        )
+        print(
+            "  campaign_id                                assessment         customer"
+        )
+        for campaign in campaigns_using_template:
+            print(
+                "  {:>25}  {:>15}  {:>15}".format(
+                    campaign._id, campaign.assessment._id, campaign.customer._id
+                )
+            )
+        print(
+            "Templates cannot be deleted while they are assigned to a campaign - exiting without deleting template."
+        )
+        sys.exit(-2)
+
+    if not util.warn_and_confirm(
+        'This will delete template {} ("{}") from the database.'.format(
+            template._id, template.name
+        )
+    ):
+        print("Exiting without deleting template.")
+        sys.exit(-2)
+
+    template.delete()
+    print("Template successfully deleted.")
+    return True
+
+
+def output_images(landing_page, sent_email, link_warning):
+    image_class = None
+    if landing_page:
+        image_class = "landing-page"
+    elif sent_email:
+        image_class = "sent-email"
+    elif link_warning:
+        image_class = "link-warning"
+
+    if image_class:
+        imageDocs = list(
+            ImageDoc.objects.raw({"img_class": image_class}).order_by(
+                [("filename", pymongo.ASCENDING), ("_id", pymongo.ASCENDING)]
+            )
+        )
+    else:
+        imageDocs = list(
+            ImageDoc.objects.raw({}).order_by(
+                [
+                    ("img_class", pymongo.ASCENDING),
+                    ("filename", pymongo.ASCENDING),
+                    ("_id", pymongo.ASCENDING),
+                ]
+            )
+        )
+    if imageDocs:
+        print("image_type,filename,image_id,url,upload_timestamp,campaigns_using_image")
+        for image in imageDocs:
+            num_campaigns_using_image = CampaignDoc.objects.raw(
+                {"images." + image.img_class: image._id}
+            ).count()
+            print(
+                '{0.img_class},"{0.filename}",{0._id},"{0.url}",{1},{2}'.format(
+                    image,
+                    image.data.uploadDate.strftime("%Y-%m-%d %H:%M%z"),
+                    num_campaigns_using_image,
+                )
+            )
+    else:
+        if image_class:
+            print("No {} images in DB!".format(image_class))
+        else:
+            print("No images in DB!")
+    return True
+
+
+def assign_image_to_campaigns(
+    image_id, landing_page, sent_email, link_warning, campaign_id_list, force=False
+):
+    if landing_page:
+        image_class = "landing-page"
+    elif sent_email:
+        image_class = "sent-email"
+    elif link_warning:
+        image_class = "link-warning"
+
+    try:
+        image = ImageDoc.objects.raw({"_id": ObjectId(image_id)}).first()
+    except InvalidId:
+        print("Image id is invalid: {}".format(image_id))
+        return False
+    except DoesNotExist:
+        print("Image id does not exist: {}".format(image_id))
+        return False
+
+    if image.img_class != image_class:
+        print(
+            "Image {} is currently stored in DB as a {} image - cannot assign image to campaign(s) as {}".format(
+                image_id, image.img_class, image_class
+            )
+        )
+        return False
+
+    for campaign_id in campaign_id_list:
+        try:
+            campaignDoc = CampaignDoc.objects.raw({"_id": campaign_id}).first()
+        except DoesNotExist:
+            print(
+                "Cannot assign {} image, campaign does not exist: {}\n".format(
+                    image_class, campaign_id
+                )
+            )
+            continue
+
+        if campaignDoc.images.get(image_class) and not force:
+            campaign_image = ImageDoc.objects.raw(
+                {"_id": campaignDoc.images[image_class]}
+            ).first()
+            print(
+                "Cannot assign {} image to campaign {}".format(image_class, campaign_id)
+            )
+            print("{} image previously assigned:".format(image_class))
+            print("       _id: {}".format(campaign_image._id))
+            print("  filename: {}".format(campaign_image.filename))
+            print("       URL: {}".format(campaign_image.url))
+            print("  imported: {}".format(campaign_image.data.uploadDate))
+            print(
+                "Use --force to replace the previous {} image with this one.\n".format(
+                    image_class
+                )
+            )
+            continue
+        else:
+            campaignDoc.images[image_class] = ObjectId(image_id)
+            campaignDoc.save()
+            print(
+                "Successfully assigned {} image {} to campaign: {}\n".format(
+                    image_class, image_id, campaignDoc._id
+                )
+            )
+    return True
+
+
+def export_image(image_id):
+    try:
+        image = ImageDoc.objects.raw({"_id": ObjectId(image_id)}).first()
+    except InvalidId:
+        print("Image id is invalid: {}".format(image_id))
+        return False
+    except DoesNotExist:
+        print("Image id does not exist: {}".format(image_id))
+        return False
+
+    if os.path.exists(image.filename):
+        if not util.warn_and_confirm(
+            'File "{}" already exists- if you continue, it will be overwritten with the data from image {}.'.format(
+                image.filename, image_id
+            )
+        ):
+            print("Exiting without exporting image.")
+            sys.exit(-2)
+
+    image_output_file = open(image.filename, "wb")
+    image.data.file.gridfs.download_to_stream(image.data.file_id, image_output_file)
+    image_output_file.close()
+    print(
+        'Successfully exported image {} to file: "{}"'.format(image_id, image.filename)
+    )
+    return True
+
+
+def delete_image(image_id):
+    try:
+        image = ImageDoc.objects.raw({"_id": ObjectId(image_id)}).first()
+    except InvalidId:
+        print("Image id is invalid: {}".format(image_id))
+        return False
+    except DoesNotExist:
+        print("Image id does not exist: {}".format(image_id))
+        return False
+
+    image_class = image.img_class
+    campaigns_using_image = list(
+        CampaignDoc.objects.raw({"images." + image_class: image._id})
+    )
+
+    if not util.warn_and_confirm(
+        "Image {} ({}) is currently assigned to {} campaign(s). This will delete the image from the database and remove the reference to it from any campaigns.".format(
+            image._id, image_class, len(campaigns_using_image)
+        )
+    ):
+        print("Exiting without deleting image.")
+        sys.exit(-2)
+
+    image.data.delete()  # delete the underlying image data (fs.files collection)
+    image.delete()  # delete the ImageDoc reference
+    for campaign in campaigns_using_image:
+        campaign.images[image_class] = None
+        campaign.save()
+
+    print("Image successfully deleted.")
+    return True
+
+
+def main():
+    if args["list-customers"]:
+        success = output_customers()
+    elif args["list-assessments"]:
+        success = output_assessments(args["CUSTOMER_ID"])
+    elif args["list-campaigns"]:
+        success = output_campaigns(args["ASSESSMENT_ID"])
+    elif args["list-templates"]:
+        success = output_templates()
+    elif args["assign-template"]:
+        success = assign_template_to_campaigns(
+            args["TEMPLATE_ID"], args["<CAMPAIGN_ID>"], args["--force"]
+        )
+    elif args["export-template"]:
+        success = export_template(args["TEMPLATE_ID"])
+    elif args["delete-template"]:
+        success = delete_template(args["TEMPLATE_ID"])
+    elif args["list-images"]:
+        success = output_images(
+            args["landing-page"], args["sent-email"], args["link-warning"]
+        )
+    elif args["assign-image"]:
+        success = assign_image_to_campaigns(
+            args["IMAGE_ID"],
+            args["landing-page"],
+            args["sent-email"],
+            args["link-warning"],
+            args["<CAMPAIGN_ID>"],
+            args["--force"],
+        )
+    elif args["export-image"]:
+        success = export_image(args["IMAGE_ID"])
+    elif args["delete-image"]:
+        success = delete_image(args["IMAGE_ID"])
+
+    # import IPython; IPython.embed() #<<< BREAKPOINT >>>
+    # sys.exit(0)
+
+    if not success:
+        sys.exit(-1)
+
+
+if __name__ == "__main__":
+    main()

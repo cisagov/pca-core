@@ -1,0 +1,881 @@
+#!/usr/bin/env python3
+"""Import files used for Phishing Campaign Assessments (PCA).
+
+Usage:
+  pca-import [--section SECTION] [--force] --customer [FILE]
+  pca-import [--section SECTION] [--force] --assessment [FILE]
+  pca-import [--section SECTION] [--force] --xml ASSESSMENT_ID CS_XML_DIRECTORY CAMPAIGN_END_DATE TEMPLATE_ID
+  pca-import [--section SECTION] [--force] (--user-labels | --methodology) ASSESSMENT_ID FILE
+  pca-import [--section SECTION] [--force] --image IMAGE_FILE (landing-page [IMAGE_URL] | sent-email | link-warning) <CAMPAIGN_ID>...
+  pca-import [--section SECTION] [--force] --template FILE [TEMPLATE_ID]
+  pca-import --sample-customer | --sample-assessment | --sample-template
+  pca-import (-h | --help)
+  pca-import --version
+
+Options:
+  -s SECTION --section=SECTION   Configuration section to use.
+  -f --force                     Force import of existing request, destroying original
+
+  -c --customer                  Import a customer JSON file.
+  -a --assessment                Import an assessment JSON file.
+  -x --xml                       Import a set of Cobalt Strike XML files.
+  -l --user-labels               Import a CSV file containing user labels.
+  -m --methodology               Import a text file containing specific methodology details.
+  -i --image                     Import an image file and associate it with one or more campaigns.
+  -t --template                  Import a phishing email template YAML file.
+  --sample-customer              Output a sample customer template JSON file.
+  --sample-assessment            Output a sample assessment template JSON file.
+  --sample-template              Output a sample phishing email template YAML file.
+  -h --help                      Show this screen.
+  --version                      Show version.
+
+NOTES:
+  * If no FILE is specified, the document will be read from standard in.
+  * CAMPAIGN_END_DATE format: "YYYY-MM-DD HH:MM" (e.g. "2017-03-29 09:00" = Mar. 29, 2017 0900 UTC)
+"""
+
+from docopt import docopt
+
+args = docopt(__doc__, version="v0.0.1")
+from pca.db.database import connect_from_config
+
+connect_from_config(
+    args["--section"]
+)  # Must connect to the DB before we can import our MongoModels
+from pca.db.database_model import *
+
+import sys
+import json
+from dateutil import parser, tz
+from pymodm.errors import DoesNotExist, ValidationError
+from xml import sax
+import os
+from collections import defaultdict
+import csv
+import hashlib
+import yaml
+from bson import ObjectId
+from bson.errors import InvalidId
+
+from pca.util import util
+from pca.handlers.cobaltstrike_handler import *
+from pca.core.common import INDICATOR_LOOKUP
+
+CS_XML_CAMPAIGNS_FILE = "campaigns.xml"
+CS_XML_TOKENS_FILE = "tokens.xml"
+CS_XML_SENT_EMAILS_FILE = "sentemails.xml"
+CS_XML_WEB_HITS_FILE = "webhits.xml"
+CS_XML_APPLICATIONS_FILE = "applications.xml"
+
+
+def output_customer_template():
+    customer = dict()
+    customer["_id"] = "TEST"
+    customer["name"] = "Test Customer"
+    customer["acronym"] = "TEST"
+    customer["contacts"] = [
+        {
+            "name": "Test Technical POC",
+            "email": "test@test.org",
+            "phone": "555-123-4567",
+            "type": "TECHNICAL",
+        },
+        {
+            "name": "Test Distro POC",
+            "email": "distro@test.org",
+            "phone": "",
+            "type": "DISTRO",
+        },
+    ]
+    print(util.to_json(customer))
+    sys.exit(0)
+
+
+def output_assessment_template():
+    assessment = dict()
+    assessment["_id"] = "TEST_0001"
+    assessment["customer"] = "TEST"
+    assessment["team_lead"] = "Test Testerton"
+    assessment["start_time"] = "2017-01-01"
+    assessment["end_time"] = "2017-01-21"
+    print(util.to_json(assessment))
+    sys.exit(0)
+
+
+def output_phishing_email_template():
+    # Would be nice to use yaml.dump, but I wanted to include the comments in the YAML output
+    print("name: Name of This Template")
+    print(
+        "text: |\n  Text or HTML text of this\n  phishing message goes here.\n  Line breaks are preserved."
+    )
+    for indicator_category in INDICATOR_LOOKUP.keys():
+        print("{}:".format(indicator_category))
+        for indicator_name in INDICATOR_LOOKUP[indicator_category].keys():
+            print("  {:<20} # ".format(indicator_name + ": 0"), end="")
+            print(
+                ",  ".join(
+                    "{}={}".format(score, explanation)
+                    for (score, explanation) in INDICATOR_LOOKUP[indicator_category][
+                        indicator_name
+                    ].items()
+                )
+            )
+    print(
+        "# Overall complexity level equals sum of appearance, sender, relevancy indicators (not behavior); should always be between 1 and 6"
+    )
+    sys.exit(0)
+
+
+def customer_already_exists(customer_id):
+    try:
+        CustomerDoc.objects.raw({"_id": customer_id}).first()
+        return True
+    except DoesNotExist:
+        return False
+
+
+def import_customer(request, source, force=False):
+    if not force and customer_already_exists(request["_id"]):
+        print("Cannot import, customer already exists: {}".format(request["_id"]))
+        print("Use --force to destroy the currently stored document")
+        print("and replace it with the imported version.")
+        return False
+    CustomerDoc.from_document(request).save()
+    return True
+
+
+def assessment_already_exists(assessment_id):
+    try:
+        AssessmentDoc.objects.raw({"_id": assessment_id}).first()
+        return True
+    except DoesNotExist:
+        return False
+
+
+def import_assessment(request, source, force=False):
+    if not force and assessment_already_exists(request["_id"]):
+        print("Cannot import, assessment already exists: {}".format(request["_id"]))
+        print("Use --force to destroy the currently stored document")
+        print("and replace it with the imported version.")
+        return False
+    if not customer_already_exists(request["customer"]):
+        print(
+            "Cannot import, customer_id does not exist: {}".format(request["customer"])
+        )
+        return False
+    doc = AssessmentDoc.from_document(request)
+    doc.start_time = doc.start_time.replace(tzinfo=tz.tzutc())
+    doc.end_time = doc.end_time.replace(tzinfo=tz.tzutc())
+    doc.save()
+    return True
+
+
+def import_json_file(filename, force, customerImport, assessmentImport):
+    f = open(filename, "rb")
+    request = json.load(f)
+    f.close()
+    if customerImport:
+        return import_customer(request, filename, force)
+    elif assessmentImport:
+        return import_assessment(request, filename, force)
+
+
+def import_json_stdin(force, customerImport, assessmentImport):
+    request = json.load(sys.stdin)
+    if customerImport:
+        return import_customer(request, "from stdin", force)
+    elif assessmentImport:
+        return import_assessment(request, "from stdin", force)
+
+
+def add_labels_to_user(label_list, user_id, force, assessmentDoc):
+    try:
+        userDoc = UserDoc.objects.raw({"_id": user_id}).first()
+    except DoesNotExist:
+        print(
+            "Cannot add labels to user {} because the user does not exist in the database".format(
+                user_id
+            )
+        )
+        print("  Skipping this user")
+        return False
+
+    if userDoc.customer != assessmentDoc.customer:
+        print("Customer mismatch between user and asssessment")
+        print(
+            "  User {} is associated with customer {}".format(
+                user_id, userDoc.customer._id
+            )
+        )
+        print(
+            "  Assessment {} is associated with customer {}".format(
+                assessmentDoc._id, assessmentDoc.customer._id
+            )
+        )
+        print("  Skipping this user")
+        return False
+
+    if not force and userDoc.customer_defined_labels.get(assessmentDoc._id):
+        print(
+            "Cannot add labels to user {} because labels ({}) already exist for assessment {}".format(
+                user_id,
+                userDoc.customer_defined_labels[assessmentDoc._id],
+                assessmentDoc._id,
+            )
+        )
+        print("  Use --force to overwrite the labels")
+        return False
+    else:
+        userDoc.customer_defined_labels[assessmentDoc._id] = label_list
+        userDoc.save()
+        return True
+
+
+def import_user_labels_file(filename, force, assessmentDoc):
+    user_labels_file = open(filename, "r")
+    header_line = (
+        user_labels_file.readline()
+    )  # Eat the header line; we don't need it here
+    users_updated = 0
+    for line in csv.reader(user_labels_file):
+        email_hash = hashlib.sha256(line[0].encode("utf-8")).hexdigest()
+        label_set = set()
+        for label in line[1:]:
+            if label:
+                label_set.add(label)  # Use a set to handle any duplicate labels
+        if label_set:
+            if add_labels_to_user(list(label_set), email_hash, force, assessmentDoc):
+                users_updated += 1
+    print("Successfully added labels to {} users".format(users_updated))
+    return True
+
+
+def import_methodology_file(filename, force, assessmentDoc):
+    if not force and assessmentDoc.methodology_text:
+        print(
+            "Cannot add methodology text because it already exists for assessment {}".format(
+                assessmentDoc._id
+            )
+        )
+        print("  Use --force to overwrite the existing methodology text:")
+        print("------\n{}\n------".format(assessmentDoc.methodology_text))
+        return False
+    else:
+        methodology_file = open(filename, "r")
+        assessmentDoc.methodology_text = (
+            methodology_file.read()
+        )  # TODO Any validation needed here?
+        assessmentDoc.save()
+        print(
+            "Successfully added methodology text to assessment {}".format(
+                assessmentDoc._id
+            )
+        )
+        return True
+
+
+class PCA_Importer(object):
+    def __init__(self):
+        self.elements = []
+        self.end_callback_call_count = 0
+
+    def element_callback(self, parsed_element):
+        # print('X' * 80)
+        # util.pp(parsed_element)
+        self.elements.append(parsed_element)
+
+    def end_callback(self):
+        self.end_callback_call_count += 1
+
+
+def campaign_already_exists(campaign_id):
+    try:
+        CampaignDoc.objects.raw({"_id": campaign_id}).first()
+        return True
+    except DoesNotExist:
+        return False
+
+
+def import_campaign(
+    campaign, assessmentDoc, campaigns_file, campaign_end_date, templateDoc, force=False
+):
+    if not force and campaign_already_exists(campaign["_id"]):
+        print("Cannot import, campaign already exists: {}".format(campaign["_id"]))
+        print("Use --force to destroy the currently stored document")
+        print("and replace it with the imported version.")
+        return False
+    doc = CampaignDoc.from_document(campaign)
+    doc.start_time = doc.start_time.replace(tzinfo=tz.tzutc())
+    doc.end_time = campaign_end_date
+    doc.customer = assessmentDoc.customer
+    doc.assessment = assessmentDoc._id
+    doc.users = list()
+    doc.template = templateDoc._id
+    doc.images = dict()
+    doc.save()
+    print("Imported campaign {} from {}".format(doc._id, campaigns_file))
+    return doc._id
+
+
+def import_cs_campaigns_file(
+    force, campaigns_file, assessmentDoc, campaign_end_date, templateDoc
+):
+    myImporter = PCA_Importer()
+    handler = CobaltStrikeCampaignsContentHandler(
+        myImporter.element_callback, myImporter.end_callback
+    )
+    f = open(campaigns_file, "rb")
+    sax.parse(f, handler)
+    f.close()
+    campaign_ids = list()
+    for campaign in myImporter.elements:
+        campaign_id = import_campaign(
+            campaign,
+            assessmentDoc,
+            campaigns_file,
+            campaign_end_date,
+            templateDoc,
+            force,
+        )
+        if not campaign_id:
+            return False
+        campaign_ids.append(campaign_id)
+    return campaign_ids
+
+
+def user_already_exists(user_id):
+    try:
+        UserDoc.objects.raw({"_id": user_id}).first()
+        return True
+    except DoesNotExist:
+        return False
+
+
+def import_user(user, customer_id, force=False):
+    if user_already_exists(user["email_hash"]):
+        if not force:
+            # print('  User already exists, skipping import: {}'.format(user['email_hash']))
+            return False
+        else:
+            print("  Updating user: {}".format(user["email_hash"]))
+    doc = UserDoc()
+    doc._id = user["email_hash"]
+    doc.customer = customer_id
+    doc.customer_defined_labels = dict()
+    doc.save()
+    return True
+
+
+def import_cs_tokens_file(force, tokens_file, assessmentDoc):
+    myImporter = PCA_Importer()
+    handler = CobaltStrikeTokensContentHandler(
+        myImporter.element_callback, myImporter.end_callback
+    )
+    f = open(tokens_file, "rb")
+    sax.parse(f, handler)
+    f.close()
+    token_dict = (
+        dict()
+    )  # this is how we will relate tokens to their user_id (email hash) and their campaign_id
+    campaign_users = defaultdict(
+        lambda: set()
+    )  # this is how we will track which users belong to which campaign
+    new_users_imported = 0
+    for user in myImporter.elements:
+        if import_user(user, assessmentDoc.customer, force):
+            new_users_imported += 1
+        token_dict[user["token"]] = {
+            "user": user["email_hash"],
+            "campaign": user["campaign"],
+        }
+        campaign_users[user["campaign"]].add(
+            user["email_hash"]
+        )  # add user_id (email_hash) to list of users for this campaign_id
+    for campaign_id, users in campaign_users.items():
+        campaignDoc = CampaignDoc.objects.raw({"_id": campaign_id}).first()
+        campaignDoc.users = list(users)
+        campaignDoc.save()
+    print(
+        "Parsed {} tokens and imported {} new unique users from {}".format(
+            len(token_dict), new_users_imported, tokens_file
+        )
+    )
+    return token_dict
+
+
+def import_email(email, user_id, force=False):
+    existing_email = EmailDoc.find_by_user_campaign_time(
+        user_id, email["campaign"], email["time"]
+    )
+    if existing_email:
+        if force:
+            email[
+                "_id"
+            ] = (
+                existing_email._id
+            )  # Re-use existing _id so existing doc gets overwritten
+        else:
+            print(
+                "Cannot import, email already exists: {} {} {}".format(
+                    user_id, email["campaign"], email["time"]
+                )
+            )
+            print("Use --force to destroy the currently stored document")
+            print("and replace it with the imported version.")
+            return False
+    doc = EmailDoc.from_document(email)
+    doc.user = user_id
+    doc.time = doc.time.replace(tzinfo=tz.tzutc())
+    doc.save()
+    return True
+
+
+def import_cs_sent_emails_file(force, sent_emails_file, assessmentDoc, token_dict):
+    myImporter = PCA_Importer()
+    handler = CobaltStrikeSentEmailsContentHandler(
+        myImporter.element_callback, myImporter.end_callback
+    )
+    f = open(sent_emails_file, "rb")
+    sax.parse(f, handler)
+    f.close()
+    for email in myImporter.elements:
+        email["customer"] = assessmentDoc.customer
+        email["assessment"] = assessmentDoc._id
+        user_id = token_dict[email["token"]]["user"]
+        import_email(email, user_id, force)
+    print(
+        "Imported {} emails from {}".format(len(myImporter.elements), sent_emails_file)
+    )
+
+
+def import_click(click, user_id, campaign_id, force=False):
+    existing_click = ClickDoc.find_by_user_time_ip(
+        user_id, click["time"], click["source_ip"]
+    )
+    if existing_click:
+        if force:
+            click[
+                "_id"
+            ] = (
+                existing_click._id
+            )  # Re-use existing _id so existing doc gets overwritten
+        else:
+            print(
+                "Cannot import, click already exists: {} {} {}".format(
+                    user_id, click["time"], click["source_ip"]
+                )
+            )
+            print("Use --force to destroy the currently stored document")
+            print("and replace it with the imported version.")
+            return False
+    doc = ClickDoc.from_document(click)
+    doc.user = user_id
+    doc.campaign = campaign_id
+    doc.time = doc.time.replace(tzinfo=tz.tzutc())
+    doc.save()
+    return True
+
+
+def import_cs_web_hits_file(
+    force, web_hits_file, assessmentDoc, token_dict, campaign_ids
+):
+    myImporter = PCA_Importer()
+    handler = CobaltStrikeWebHitsContentHandler(
+        myImporter.element_callback, myImporter.end_callback
+    )
+    f = open(web_hits_file, "rb")
+    sax.parse(f, handler)
+    f.close()
+    for click in myImporter.elements:
+        click["customer"] = assessmentDoc.customer
+        click["assessment"] = assessmentDoc._id
+        if token_dict.get(click["token"]):  # token is NOT guaranteed to be present
+            user_id = token_dict[click["token"]]["user"]
+            campaign_id = token_dict[click["token"]]["campaign"]
+        else:
+            user_id = campaign_id = None
+            if (
+                len(campaign_ids) == 1
+            ):  # if there's only 1 campaign_id, then we know which campaign to use
+                campaign_id = campaign_ids[0]
+        import_click(click, user_id, campaign_id, force)
+    print("Imported {} clicks from {}".format(len(myImporter.elements), web_hits_file))
+
+
+def import_application(application, user_id, campaign_id, force=False):
+    existing_application = ApplicationDoc.find_by_user_time_name_version(
+        user_id, application["time"], application["name"], application["version"]
+    )
+    if existing_application:
+        if force:
+            application[
+                "_id"
+            ] = (
+                existing_application._id
+            )  # Re-use existing _id so existing doc gets overwritten
+        else:
+            print(
+                "Cannot import, application already exists: {} {} {} {}".format(
+                    user_id,
+                    application["time"],
+                    application["name"],
+                    application["version"],
+                )
+            )
+            print("Use --force to destroy the currently stored document")
+            print("and replace it with the imported version.")
+            return False
+    doc = ApplicationDoc.from_document(application)
+    doc.user = user_id
+    doc.campaign = campaign_id
+    doc.time = doc.time.replace(tzinfo=tz.tzutc())
+    doc.save()
+    return True
+
+
+def import_cs_applications_file(
+    force, applications_file, assessmentDoc, token_dict, campaign_ids
+):
+    myImporter = PCA_Importer()
+    handler = CobaltStrikeApplicationsContentHandler(
+        myImporter.element_callback, myImporter.end_callback
+    )
+    f = open(applications_file, "rb")
+    sax.parse(f, handler)
+    f.close()
+    for application in myImporter.elements:
+        application["customer"] = assessmentDoc.customer
+        application["assessment"] = assessmentDoc._id
+        if token_dict.get(
+            application["token"]
+        ):  # valid token is NOT guaranteed to be present
+            user_id = token_dict[application["token"]]["user"]
+            campaign_id = token_dict[application["token"]]["campaign"]
+        else:
+            user_id = campaign_id = None
+            if (
+                len(campaign_ids) == 1
+            ):  # if there's only 1 campaign_id, then we know which campaign to use
+                campaign_id = campaign_ids[0]
+        import_application(application, user_id, campaign_id, force)
+    print(
+        "Imported {} applications from {}".format(
+            len(myImporter.elements), applications_file
+        )
+    )
+
+
+def import_cs_xml_files(
+    force, cs_xml_dir, assessmentDoc, campaign_end_date, templateDoc
+):
+    # import Cobalt Strike XML files
+    campaign_ids = import_cs_campaigns_file(
+        force,
+        os.path.join(cs_xml_dir, CS_XML_CAMPAIGNS_FILE),
+        assessmentDoc,
+        campaign_end_date,
+        templateDoc,
+    )
+    if not campaign_ids:
+        return False
+    else:
+        token_dict = import_cs_tokens_file(
+            force, os.path.join(cs_xml_dir, CS_XML_TOKENS_FILE), assessmentDoc
+        )
+        import_cs_sent_emails_file(
+            force,
+            os.path.join(cs_xml_dir, CS_XML_SENT_EMAILS_FILE),
+            assessmentDoc,
+            token_dict,
+        )
+        import_cs_web_hits_file(
+            force,
+            os.path.join(cs_xml_dir, CS_XML_WEB_HITS_FILE),
+            assessmentDoc,
+            token_dict,
+            campaign_ids,
+        )
+        import_cs_applications_file(
+            force,
+            os.path.join(cs_xml_dir, CS_XML_APPLICATIONS_FILE),
+            assessmentDoc,
+            token_dict,
+            campaign_ids,
+        )
+        print("")
+        return True
+
+
+def import_image(
+    image_filename,
+    landing_page,
+    sent_email,
+    link_warning,
+    image_url,
+    campaign_id_list,
+    force=False,
+):
+    if landing_page:
+        image_class = "landing-page"
+    elif sent_email:
+        image_class = "sent-email"
+    elif link_warning:
+        image_class = "link-warning"
+
+    imageDoc = None
+    for campaign_id in campaign_id_list:
+        try:
+            campaignDoc = CampaignDoc.objects.raw({"_id": campaign_id}).first()
+        except DoesNotExist:
+            print(
+                "Cannot assign {} image, campaign does not exist: {}\n".format(
+                    image_class, campaign_id
+                )
+            )
+            continue
+
+        if campaignDoc.images.get(image_class) and not force:
+            campaign_image = ImageDoc.objects.raw(
+                {"_id": campaignDoc.images[image_class]}
+            ).first()
+            print(
+                "Cannot assign {} image to campaign {}".format(image_class, campaign_id)
+            )
+            print("{} image previously assigned:".format(image_class))
+            print("       _id: {}".format(campaign_image._id))
+            print("  filename: {}".format(campaign_image.filename))
+            print("       URL: {}".format(campaign_image.url))
+            print("  imported: {}".format(campaign_image.data.uploadDate))
+            print(
+                "Use --force to replace the previous {} image with this one.\n".format(
+                    image_class
+                )
+            )
+            continue
+        else:
+            if not imageDoc:
+                imageDoc = ImageDoc()
+                imageDoc.data = open(image_filename, "rb")
+                imageDoc.filename = os.path.basename(image_filename)
+                if image_url:
+                    imageDoc.url = image_url
+                else:
+                    imageDoc.url = ""
+                imageDoc.img_class = image_class
+                imageDoc.save()  # _id is assigned after save() completes
+                print(
+                    "Successfully imported {} image from file: {} (image _id: {})\n".format(
+                        image_class, image_filename, imageDoc._id
+                    )
+                )
+
+            campaignDoc.images[image_class] = imageDoc._id
+            campaignDoc.save()
+            print(
+                "Successfully assigned {} image to campaign: {}\n".format(
+                    image_class, campaignDoc._id
+                )
+            )
+    return imageDoc
+
+
+def import_template_file(template_filename, template_id=None, force=False):
+    template_file = open(template_filename, "r")
+    template = yaml.safe_load(template_file)
+    template_file.close()
+
+    templateDoc = TemplateDoc.from_document(template)
+    templateDoc.complexity = 0
+    try:
+        templateDoc.full_clean()
+    except ValidationError as e:
+        print('Validation errors in template file "{}":'.format(template_filename))
+        for msg in e.message.values():
+            print("  {}".format(msg[0]))
+        print("\nExiting without importing template.")
+        return False
+
+    if template_id is not None:
+        try:
+            # Check if template with template_id already exists in the database
+            existing_template = TemplateDoc.objects.raw(
+                {"_id": ObjectId(template_id)}
+            ).first()
+        except DoesNotExist:
+            existing_template = None
+
+        if existing_template:
+            if not force:
+                print("Cannot import, template already exists: {}".format(template_id))
+                print("Use --force to destroy the currently stored template")
+                print("and replace it with the imported version.")
+                return False
+            else:
+                print("Found existing template {}:".format(template_id))
+                print('  Original name: "{}"'.format(existing_template.name))
+                print("  Original complexity: {}".format(existing_template.complexity))
+                print("Replacing with template below...\n")
+                templateDoc._id = template_id
+                end_confirmation_text = "the updated"
+        else:
+            # Template with template_id does not exist in database
+            print(
+                "Cannot update template {} because it does not exist.".format(
+                    template_id
+                )
+            )
+            return False
+    else:
+        # No template_id was provided, so create a new template
+        end_confirmation_text = "a new"
+
+    print('Template "{}" Summary:'.format(templateDoc.name))
+    for template_attribute in INDICATOR_LOOKUP.keys():
+        print("  {}:".format(template_attribute))
+        for key in template[template_attribute].keys():
+            print(
+                "    {}: {} [{}]".format(
+                    key,
+                    template[template_attribute][key],
+                    INDICATOR_LOOKUP[template_attribute][key][
+                        template[template_attribute][key]
+                    ],
+                )
+            )
+            # only count the following attributes towards the overall complexity
+            if template_attribute in ("appearance", "sender", "relevancy"):
+                templateDoc.complexity += template[template_attribute][key]
+    print(
+        '  complexity: {} (calculated from attributes above, excluding "behavior")'.format(
+            templateDoc.complexity
+        )
+    )
+
+    if templateDoc.complexity < 1 or templateDoc.complexity > 6:
+        print(
+            "    WARNING: Complexity should be between 1 and 6. This template has a complexity of {}.".format(
+                templateDoc.complexity
+            )
+        )
+
+    print()
+    if not util.warn_and_confirm(
+        f"This will import {end_confirmation_text} template into the database. Review the summary above for accuracy."
+    ):
+        print("Exiting without importing template.")
+        return False
+
+    templateDoc.save()
+    print(
+        'Successfully imported "{}" template with ID {}'.format(
+            templateDoc.name, templateDoc._id
+        )
+    )
+    return True
+
+
+def main():
+    if args["--sample-customer"]:
+        output_customer_template()
+    elif args["--sample-assessment"]:
+        output_assessment_template()
+    elif args["--sample-template"]:
+        output_phishing_email_template()
+
+    # import IPython; IPython.embed() #<<< BREAKPOINT >>>
+    # sys.exit(0)
+
+    # TODO Investigate MongoModel.save(force_insert) - may work better than current '--force' setup
+    if args["--customer"] or args["--assessment"]:
+        if args["FILE"] != None:
+            success = import_json_file(
+                args["FILE"], args["--force"], args["--customer"], args["--assessment"]
+            )
+        else:
+            success = import_json_stdin(
+                args["--force"], args["--customer"], args["--assessment"]
+            )
+    elif args["--image"]:
+        success = import_image(
+            args["IMAGE_FILE"],
+            args["landing-page"],
+            args["sent-email"],
+            args["link-warning"],
+            args["IMAGE_URL"],
+            args["<CAMPAIGN_ID>"],
+            args["--force"],
+        )
+    elif args["--template"]:
+        success = import_template_file(
+            args["FILE"], args["TEMPLATE_ID"], args["--force"]
+        )
+    else:
+        try:
+            assessmentDoc = AssessmentDoc.objects.raw(
+                {"_id": args["ASSESSMENT_ID"]}
+            ).first()
+        except DoesNotExist:
+            assessmentDoc = None
+            print(
+                "Cannot import, assessment does not exist: {}".format(
+                    args["ASSESSMENT_ID"]
+                )
+            )
+            success = False
+
+        if assessmentDoc:
+            if args["--user-labels"]:
+                success = import_user_labels_file(
+                    args["FILE"], args["--force"], assessmentDoc
+                )
+            elif args["--methodology"]:
+                success = import_methodology_file(
+                    args["FILE"], args["--force"], assessmentDoc
+                )
+            else:
+                try:
+                    campaign_end_date = parser.parse(args["CAMPAIGN_END_DATE"]).replace(
+                        tzinfo=tz.tzutc()
+                    )
+                except:
+                    print(
+                        "Cannot import, error parsing campaign end date: {}".format(
+                            args["CAMPAIGN_END_DATE"]
+                        )
+                    )
+                    print('Campaign end date must be in format: "YYYY-MM-DD HH:MM"')
+                    sys.exit(-1)
+
+                try:
+                    templateDoc = TemplateDoc.objects.raw(
+                        {"_id": ObjectId(args["TEMPLATE_ID"])}
+                    ).first()
+                except InvalidId:
+                    print(
+                        "Cannot import, template id is invalid: {}".format(
+                            args["TEMPLATE_ID"]
+                        )
+                    )
+                    sys.exit(-1)
+                except DoesNotExist:
+                    print(
+                        "Cannot import, template does not exist: {}".format(
+                            args["TEMPLATE_ID"]
+                        )
+                    )
+                    sys.exit(-1)
+
+                success = import_cs_xml_files(
+                    args["--force"],
+                    args["CS_XML_DIRECTORY"],
+                    assessmentDoc,
+                    campaign_end_date,
+                    templateDoc,
+                )
+
+    if not success:
+        sys.exit(-1)
+
+
+if __name__ == "__main__":
+    main()

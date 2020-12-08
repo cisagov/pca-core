@@ -1,0 +1,23 @@
+#!/bin/bash
+
+echo '################################################################################'
+echo '# The following output is used to setup aliases to containerized pca commands'
+echo '# To apply these changes under bash use a command similar to:'
+echo '# eval "$(docker run ncats/pca-core)"'
+echo '#'
+echo '# Environment variables:'
+echo '# PCA_CONF_DIR, defaults to "/etc/pca" if not set'
+echo '# PCA_CORE_IMAGE, defaults to "ncats/pca-core" if not set'
+echo '################################################################################'
+echo
+
+cd /usr/local/bin
+
+# create output that can be evaled to create aliases for pca-core commands
+for f in pca-*
+do
+  echo alias $f=\"docker run -it --rm --volume \\\"\\\${PCA_CONF_DIR:-/etc/pca}\\\":/etc/pca --volume \\\`pwd\\\`:/home/pca \\\"\\\${PCA_CORE_IMAGE:-ncats/pca-core}\\\" $f\"
+done
+
+# create an alias to start bash in the container
+echo alias pca-bash=\"docker run -it --rm --volume \\\"\\\${PCA_CONF_DIR:-/etc/pca}\\\":/etc/pca --volume \\\`pwd\\\`:/home/pca \\\"\\\${PCA_CORE_IMAGE:-ncats/pca-core}\\\" /bin/bash\"

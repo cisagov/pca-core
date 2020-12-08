@@ -1,0 +1,8 @@
+<tokens>
+	<!-- Test entries likely need to be added before testing will work -->
+	<entry>
+			<token>0123456789ab</token>
+			<email>test1@example.org</email>
+			<cid>2800000a-500e-4008-a00e-600000000007</cid>
+	</entry>
+</tokens>
