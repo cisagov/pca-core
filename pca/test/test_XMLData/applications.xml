@@ -1,6 +1,6 @@
 <applications>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>Internet Explorer</application>
 			<version>10.0</version>
@@ -8,7 +8,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Internet Explorer</application>
 			<version>6.0.2900.5512</version>
@@ -16,7 +16,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>83.31.118.162</external>
+			<external>192.168.118.162</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -24,7 +24,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>MS Silverlight</application>
 			<version>5.1.20913.019</version>
@@ -32,7 +32,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>Windows Media Player</application>
 			<version>12.0.7601.19148</version>
@@ -40,7 +40,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Windows XP</application>
 			<version></version>
@@ -48,7 +48,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Windows Media Player</application>
 			<version>11.0.5721.5145</version>
@@ -56,7 +56,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>23.243.43.90</external>
+			<external>192.168.43.90</external>
 			<internal>unknown</internal>
 			<application>Chrome</application>
 			<version>52.0.2743.98</version>
@@ -64,7 +64,7 @@
 			<id>0a7c1e74cedd</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>JScript</application>
 			<version>5.7.16599</version>
@@ -72,7 +72,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Adobe Reader</application>
 			<version>9.0.0</version>
@@ -80,7 +80,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>83.31.118.162</external>
+			<external>192.168.118.162</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>3.5.5</version>
@@ -88,7 +88,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>62.210.129.246</external>
+			<external>192.168.129.246</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>45.0</version>
@@ -96,7 +96,7 @@
 			<id>e748333fa9c0</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Adobe Reader</application>
 			<version>9.0.0</version>
@@ -104,7 +104,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Windows XP</application>
 			<version></version>
@@ -112,7 +112,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>MS Silverlight</application>
 			<version>5.1.20913.019</version>
@@ -120,7 +120,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>23.243.43.90</external>
+			<external>192.168.43.90</external>
 			<internal>unknown</internal>
 			<application>Android Mobile</application>
 			<version></version>
@@ -128,7 +128,7 @@
 			<id>0a7c1e74cedd</id>
 	</entry>
 	<entry>
-			<external>83.31.118.162</external>
+			<external>192.168.118.162</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>3.5.5</version>
@@ -136,7 +136,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>23.243.43.90</external>
+			<external>192.168.43.90</external>
 			<internal>unknown</internal>
 			<application>Chrome</application>
 			<version>52.0.2743.98</version>
@@ -144,7 +144,7 @@
 			<id>0a7c1e74cedd</id>
 	</entry>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>JScript</application>
 			<version>10.0.17609</version>
@@ -152,7 +152,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>62.210.129.246</external>
+			<external>192.168.129.246</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>45.0</version>
@@ -160,7 +160,7 @@
 			<id>e748333fa9c0</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Java</application>
 			<version>1.6.0_24</version>
@@ -168,7 +168,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>MS Office 2013</application>
 			<version></version>
@@ -176,7 +176,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>MS Silverlight</application>
 			<version>5.1.20913.019</version>
@@ -184,7 +184,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>83.31.73.40</external>
+			<external>192.168.73.40</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>3.5.5</version>
@@ -192,7 +192,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>62.210.129.246</external>
+			<external>192.168.129.246</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -200,7 +200,7 @@
 			<id>e748333fa9c0</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Internet Explorer</application>
 			<version>6.0.2900.5512</version>
@@ -208,7 +208,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>62.210.129.246</external>
+			<external>192.168.129.246</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -216,7 +216,7 @@
 			<id>e748333fa9c0</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Adobe Flash</application>
 			<version>10.2.153.1</version>
@@ -224,7 +224,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>83.31.73.40</external>
+			<external>192.168.73.40</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -232,7 +232,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>83.31.177.54</external>
+			<external>192.168.177.54</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>3.5.5</version>
@@ -240,7 +240,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>83.31.118.162</external>
+			<external>192.168.118.162</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -248,7 +248,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>23.243.43.90</external>
+			<external>192.168.43.90</external>
 			<internal>unknown</internal>
 			<application>Android Mobile</application>
 			<version></version>
@@ -256,7 +256,7 @@
 			<id>0a7c1e74cedd</id>
 	</entry>
 	<entry>
-			<external>83.31.118.162</external>
+			<external>192.168.118.162</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>3.5.5</version>
@@ -264,7 +264,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>Adobe Reader</application>
 			<version>11.0.</version>
@@ -272,7 +272,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>Adobe Flash</application>
 			<version>22.0.0.210</version>
@@ -280,7 +280,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Java</application>
 			<version>1.6.0_24</version>
@@ -288,7 +288,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>108.61.208.132</external>
+			<external>192.168.208.132</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -296,7 +296,7 @@
 			<id>e748333fa9c0</id>
 	</entry>
 	<entry>
-			<external>83.31.118.162</external>
+			<external>192.168.118.162</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -304,7 +304,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>108.61.208.132</external>
+			<external>192.168.208.132</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>45.0</version>
@@ -312,7 +312,7 @@
 			<id>e748333fa9c0</id>
 	</entry>
 	<entry>
-			<external>159.83.168.254</external>
+			<external>192.168.168.254</external>
 			<internal>unknown</internal>
 			<application>Windows 7 *64</application>
 			<version></version>
@@ -320,7 +320,7 @@
 			<id>d993a68bf4e7</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>MS Office 2007</application>
 			<version></version>
@@ -328,7 +328,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>83.31.177.54</external>
+			<external>192.168.177.54</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -336,7 +336,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Adobe Flash</application>
 			<version>10.2.153.1</version>
@@ -344,7 +344,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>83.24.168.110</external>
+			<external>192.168.168.110</external>
 			<internal>unknown</internal>
 			<application>Firefox</application>
 			<version>3.5.5</version>
@@ -352,7 +352,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>MS Office 2007</application>
 			<version></version>
@@ -360,7 +360,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>83.24.168.110</external>
+			<external>192.168.168.110</external>
 			<internal>unknown</internal>
 			<application>Windows 7</application>
 			<version></version>
@@ -368,7 +368,7 @@
 			<id>undefined</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>Windows Media Player</application>
 			<version>11.0.5721.5145</version>
@@ -376,7 +376,7 @@
 			<id>25b0f8b5407f</id>
 	</entry>
 	<entry>
-			<external>66.187.149.91</external>
+			<external>192.168.149.91</external>
 			<internal>unknown</internal>
 			<application>JScript</application>
 			<version>5.7.16599</version>
