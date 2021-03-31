@@ -20,9 +20,9 @@ production-write:
   database-uri: mongodb://<MONGO_USERNAME>:<MONGO_PASSWORD>@host.docker.internal:27017/pca
 ```
 
-## Using PCA Commands with Docker
+## Using PCA commands with Docker
 
-The PCA commands implemented in the docker container can be aliased into the host environment by using the procedure below.
+The PCA commands implemented in the Docker container can be aliased into the host environment by using the procedure below.
 
 Alias the container commands to the local environment:
 
@@ -36,7 +36,7 @@ To run a PCA command:
 pca-tool list-customers
 ```
 
-### Caveats and Gotchas
+### Caveats and gotchas
 
 Whenever an aliased PCA command is executed, it will use the current working directory as its home volume. This limits your ability to use absolute paths as parameters to commands, or relative paths that reference parent directories, e.g.; `../foo`. That means all path parameters to a PCA command must be in the current working directory, or a subdirectory.
 
@@ -47,7 +47,7 @@ Whenever an aliased PCA command is executed, it will use the current working dir
 | NO!      | `pca-import --customer ../CUST.json`     | parameter file is in a parent directory    |
 | NO!      | `pca-import --customer /tmp/CUST.json`   | parameter file is an absolute path         |
 
-### Advanced Configuration
+### Advanced configuration
 
 By default, the container will look for your PCA configuration in `/etc/pca`. This location can be changed by setting the `PCA_CONF_DIR` environment variable to point to your PCA configuration directory. The commands will also attempt to run using the `cisagov/pca-core` image. A different image can be used by setting the `PCA_CORE_IMAGE` environment variable to the image name.
 
@@ -66,12 +66,12 @@ To build the Docker container for pca-core:
 docker build -t cisagov/pca-core .
 ```
 
-## Manual Installation
+## Manual installation
 
 To manually install on your host system, run the following command from the pca-core source directory:
 `sudo pip install --no-cache-dir .`
 
-## Development Installation
+## Development installation
 
 If you are developing the source, the following installation command will allow in-place editing with live updates to the libraries and command line utilities:
 `sudo pip install --no-cache-dir -e .[dev]`
