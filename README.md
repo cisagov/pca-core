@@ -1,4 +1,4 @@
-# NCATS: PCA Core Libraries
+# PCA Core
 
 The core files needed for Phishing Campaign Assessment (PCA) data import and manipulation.
 
@@ -27,7 +27,7 @@ The PCA commands implemented in the docker container can be aliased into the hos
 Alias the container commands to the local environment:
 
 ```bash
-eval "$(docker run ncats/pca-core)"
+eval "$(docker run cisagov/pca-core)"
 ```
 
 To run a PCA command:
@@ -49,13 +49,13 @@ Whenever an aliased PCA command is executed, it will use the current working dir
 
 ### Advanced Configuration
 
-By default, the container will look for your PCA configuration in `/etc/pca`. This location can be changed by setting the `PCA_CONF_DIR` environment variable to point to your PCA configuration directory. The commands will also attempt to run using the `ncats/pca-core` image. A different image can be used by setting the `PCA_CORE_IMAGE` environment variable to the image name.
+By default, the container will look for your PCA configuration in `/etc/pca`. This location can be changed by setting the `PCA_CONF_DIR` environment variable to point to your PCA configuration directory. The commands will also attempt to run using the `cisagov/pca-core` image. A different image can be used by setting the `PCA_CORE_IMAGE` environment variable to the image name.
 
 Example:
 
 ```
 export PCA_CONF_DIR=/private/etc/pca
-export PCA_CORE_IMAGE=dhub.ncats.cyber.dhs.gov:5001/pca-core
+export PCA_CORE_IMAGE=cisagov/pca-core
 ```
 
 ### Building the pca-core container
@@ -63,7 +63,7 @@ export PCA_CORE_IMAGE=dhub.ncats.cyber.dhs.gov:5001/pca-core
 To build the Docker container for pca-core:
 
 ```bash
-docker build -t ncats/pca-core .
+docker build -t cisagov/pca-core .
 ```
 
 ## Manual Installation
