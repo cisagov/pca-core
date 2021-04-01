@@ -128,7 +128,7 @@ class TestCSTokensHandler:
         ), "unexpected campaign for token 0"
         assert (
             your_moms_tokens.elements[0]["email_hash"]
-            == "b50d5fdd00875968949111be416814c9a17d197242644290636099ad6f1e2e1b"
+            == "48868cd21562c70ae1087618e1de1bc5978089eb3500fea2e48852fb9e1f8feb"
         ), "unexpected email_hash for token 0"
         assert (
             your_moms_tokens.elements[0]["token"] == "04ea957ec11c"
@@ -215,7 +215,7 @@ class TestCSSWebhitsHandler:
             your_moms_webhits.elements[0]["token"] == "71a6710a43d8"
         ), "unexpected token for webhit 0"
         assert (
-            your_moms_webhits.elements[0]["source_ip"] == "107.178.195.201"
+            your_moms_webhits.elements[0]["source_ip"] == "192.168.195.201"
         ), "unexpected source_ip for webhit 0"
 
 
@@ -261,7 +261,7 @@ class TestCSSApplicationsHandler:
             your_moms_applications.elements[0]["version"] == "10.0"
         ), "unexpected version for application 0"
         assert (
-            your_moms_applications.elements[0]["external_ip"] == "159.83.168.254"
+            your_moms_applications.elements[0]["external_ip"] == "192.168.168.254"
         ), "unexpected external_ip for application 0"
         assert (
             your_moms_applications.elements[0]["internal_ip"] == None
