@@ -6,6 +6,7 @@ Usage:
   pca-tool [--section SECTION] list-assessments CUSTOMER_ID
   pca-tool [--section SECTION] list-campaigns ASSESSMENT_ID
   pca-tool [--section SECTION] list-templates
+  pca-tool [--section SECTION] list-user-reports CUSTOMER_ID
   pca-tool [--section SECTION] [--force] assign-template TEMPLATE_ID <CAMPAIGN_ID>...
   pca-tool [--section SECTION] (export-template | delete-template) TEMPLATE_ID
   pca-tool [--section SECTION] list-images [landing-page | sent-email | link-warning]
@@ -127,6 +128,27 @@ def output_templates():
         print("No templates in DB!")
     return True
 
+def output_user_reports(customer_id):
+    if not CustomerDoc.objects.raw({"_id": customer_id}).count():
+        print("Customer does not exist: {}".format(customer_id))
+        return False
+
+    user_reports = list(
+        UserReportDoc.objects.raw({"customer": customer_id}).order_by(
+            [("customer", pymongo.ASCENDING)]
+        )
+    )
+    if user_reports:
+        print("user_report_id,customer_id, assessment_id, campaign_id, first_report, total_num_reports")
+        for user_report in user_reports:
+            print(
+                '{0._id},{0.customer._id},{0.assessment._id},{0.campaign._id},{0.first_report},{0.total_num_reports}'.format(
+                    user_report
+                )
+            )
+    else:
+        print("Customer {} has no User Reports in DB!".format(customer_id))
+    return True
 
 def assign_template_to_campaigns(template_id, campaign_id_list, force=False):
     try:
@@ -428,6 +450,8 @@ def main():
         success = output_campaigns(args["ASSESSMENT_ID"])
     elif args["list-templates"]:
         success = output_templates()
+    elif args["list-user-reports"]:
+        success = output_user_reports(args["CUSTOMER_ID"])
     elif args["assign-template"]:
         success = assign_template_to_campaigns(
             args["TEMPLATE_ID"], args["<CAMPAIGN_ID>"], args["--force"]

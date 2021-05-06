@@ -8,6 +8,7 @@ __all__ = [
     "ApplicationDoc",
     "ImageDoc",
     "TemplateDoc",
+    "UserReportDoc"
 ]
 
 from pymongo.errors import OperationFailure
@@ -28,6 +29,7 @@ CLICK_COLLECTION = "clicks"
 APPLICATION_COLLECTION = "applications"
 IMAGE_COLLECTION = "images"
 TEMPLATE_COLLECTION = "templates"
+USER_REPORT_COLLECTION = "user_reports"
 
 
 class RootDoc(MongoModel):
@@ -417,3 +419,38 @@ class ApplicationDoc(RootDoc):
         else:
             self.internal_ip_int = None  # IPv6 integer representations are too large to store in MongoDB currently
         super(ApplicationDoc, self).save(*args, **kwargs)
+
+class UserReportDoc(RootDoc):
+    _id = fields.CharField(primary_key=True, required=True)
+    customer = fields.ReferenceField(
+        CustomerDoc, required=True
+    )
+    assessment = fields.ReferenceField(
+        AssessmentDoc, required=True
+    )
+    campaign = fields.ReferenceField(
+        CampaignDoc, required=True
+    )
+    first_report = fields.DateTimeField(blank=True)
+    total_num_reports = fields.IntegerField(blank=True)
+
+    class Meta:
+        collection_name = USER_REPORT_COLLECTION
+        final = True  # so we don't get a '_cls' field in these documents (e.g. "_cls" : "__main__.Customer")
+        ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc
+
+    def find_by_campaign_assessment(customer_id, campaign_id, assessment_id):
+        try:
+            doc = UserReportDoc.objects.raw(
+                {
+                    "customer": customer_id,
+                    "campaign": campaign_id,
+                    "assessment_id": assessment_id
+                }
+            ).first()
+        except DoesNotExist:
+            return None
+        return doc
+
+    def save(self, *args, **kwargs):
+        super(UserReportDoc, self).save(*args, **kwargs)
