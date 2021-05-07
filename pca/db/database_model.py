@@ -436,7 +436,7 @@ class UserReportDoc(RootDoc):
 
     class Meta:
         collection_name = USER_REPORT_COLLECTION
-        final = True  # so we don't get a '_cls' field in these documents (e.g. "_cls" : "__main__.Customer")
+        final = True
         ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc
 
     def find_by_campaign_assessment(customer_id, campaign_id, assessment_id):
@@ -454,3 +454,4 @@ class UserReportDoc(RootDoc):
 
     def save(self, *args, **kwargs):
         super(UserReportDoc, self).save(*args, **kwargs)
+        
