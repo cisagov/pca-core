@@ -454,4 +454,4 @@ class UserReportDoc(RootDoc):
 
     def save(self, *args, **kwargs):
         super(UserReportDoc, self).save(*args, **kwargs)
-        
+
