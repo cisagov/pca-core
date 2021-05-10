@@ -439,11 +439,13 @@ class UserReportDoc(RootDoc):
         final = True
         ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc
 
-    def find_by_customer(customer_id):
+    def find_by_customer_assesment_campaign(customer_id, assessment_id, campaign_id):
         try:
             doc = UserReportDoc.objects.raw(
                 {
                     "customer": customer_id,
+                    "assessment": assessment_id,
+                    "campaign" : campaign_id
                 }
             ).first()
         except DoesNotExist:
