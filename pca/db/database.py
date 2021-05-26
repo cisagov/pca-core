@@ -1,37 +1,40 @@
-__all__ = [
-    "connect_from_config",
-    "db_from_connection",
-    "db_from_config",
-    "id_expand",
-    "ensure_indices",
-]
+"""pca/db/database.py ."""
 
-import sys
+# Standard Python Libraries
 import copy
+import sys
+
+# Third-Party Libraries
+from pymodm import connect
 from pymongo import MongoClient
-from pymodm import MongoModel, fields, connect
+from pymongo.errors import OperationFailure
+
+# cisagov Libraries
 from pca.config import Config
 
 
 def connect_from_config(config_section=None):
+    """Connect to the database from the provided configuration."""
     config = Config(config_section)
     connect(config.db_uri, tz_aware=True)
     return True
 
 
 def db_from_connection(uri, name):
+    """Return the database from the MongoDB connection."""
     con = MongoClient(host=uri, tz_aware=True)
     db = con[name]
     return db
 
 
 def db_from_config(config_section=None):
+    """Return database from the configuration."""
     config = Config(config_section)
     return db_from_connection(config.db_uri, config.db_name)
 
 
 def id_expand(results):
-    """Extract items from aggregation grouping _id dictionary and insert into outer results"""
+    """Extract items from aggregation grouping _id dictionary and insert into outer results."""
     for result in results:
         if "_id" not in result:
             continue
@@ -45,7 +48,7 @@ def id_expand(results):
 
 
 def combine_results(d, results, envelope=None):
-    """updates dict with pipeline results"""
+    """Update dict with pipeline results."""
     if len(results) == 0:
         return
     results = copy.copy(results)  # don't want to modifiy the results input
@@ -57,8 +60,7 @@ def combine_results(d, results, envelope=None):
 
 
 def run_pipeline(pipeline_collection_tuple, db):
-    """Run an aggregation using a pipeline, collection tuple like those provided
-       in the queries module."""
+    """Run an aggregation using a pipeline, collection tuple like those provided in the queries module."""
     (pipeline, collection) = pipeline_collection_tuple
     try:
         results = db[collection].aggregate(pipeline, allowDiskUse=True)
@@ -72,8 +74,7 @@ def run_pipeline(pipeline_collection_tuple, db):
 
 
 def run_pipeline_cursor(pipeline_collection_tuple, db):
-    """Like run_pipeline but uses a cursor to access results larger than the max
-       MongoDB size."""
+    """Like run_pipeline but uses a cursor to access results larger than the max MongoDB size."""
     (pipeline, collection) = pipeline_collection_tuple
     cursor = db[collection].aggregate(pipeline, allowDiskUse=True, cursor={})
     results = []
@@ -83,6 +84,7 @@ def run_pipeline_cursor(pipeline_collection_tuple, db):
 
 
 def ensure_indices(db, foreground=False):
+    """Ensure indices for collections."""
     background = not foreground
     if background:
         print("Ensuring indices for all collection in background.", file=sys.stderr)
@@ -91,13 +93,15 @@ def ensure_indices(db, foreground=False):
 
     # possibly delving too greedily and too deep
     for class_name, clazz in db.connection._registered_documents.items():
-        print >>sys.stderr, "Ensuring indices for %s:" % class_name
+        print(sys.stderr, "Ensuring indices for %s:" % class_name)
         indices = db[class_name].get_indices()
         if not indices:
             continue
         for name, spec, unique, sparse in indices:
             print(
-                "\t%s:\tunique=%s\tsparse=%s\t%s ..." % (name, unique, sparse, spec),
+                "\t{}:\tunique={}\tsparse={}\t{} ...".format(
+                    name, unique, sparse, spec
+                ),
                 end=" ",
                 file=sys.stderr,
             )

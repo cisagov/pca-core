@@ -1,21 +1,21 @@
-__all__ = [
-    "CobaltStrikeCampaignsContentHandler",
-    "CobaltStrikeTokensContentHandler",
-    "CobaltStrikeSentEmailsContentHandler",
-    "CobaltStrikeWebHitsContentHandler",
-    "CobaltStrikeApplicationsContentHandler",
-]
+"""pca/handlers/cobaltstrike_handler.py ."""
+# mypy: ignore-errors
 
-from xml.sax import ContentHandler, parse, SAXNotRecognizedException
-from xml.parsers.expat import ExpatError
-from pca.util import copy_attrs
+
+# Standard Python Libraries
 import datetime
 import hashlib
 import ipaddress
 
+# Third-Party Libraries
+from defusedxml.sax import ContentHandler, SAXNotRecognizedException
+
 
 class CobaltStrikeCampaignsContentHandler(ContentHandler):
+    """Class to handle CobaltStrike Campaign Content."""
+
     def __init__(self, campaign_callback, end_callback):
+        """Initialize data members."""
         ContentHandler.__init__(self)
         self.campaign_callback = campaign_callback
         self.end_callback = end_callback
@@ -24,6 +24,7 @@ class CobaltStrikeCampaignsContentHandler(ContentHandler):
         self.chars = ""
 
     def startElement(self, name, attrs):
+        """Locate entry and allocate currentCampaign."""
         # clear characters buffer
         self.chars = ""
         if not self.is_campaignsFile:
@@ -37,6 +38,7 @@ class CobaltStrikeCampaignsContentHandler(ContentHandler):
             self.currentCampaign = dict()
 
     def endElement(self, name):
+        """Assign campaign data members."""
         if name == "entry":
             self.campaign_callback(self.currentCampaign)
         elif name == "cid":
@@ -55,11 +57,15 @@ class CobaltStrikeCampaignsContentHandler(ContentHandler):
             self.end_callback()
 
     def characters(self, content):
+        """Assign content to chars."""
         self.chars += content
 
 
 class CobaltStrikeTokensContentHandler(ContentHandler):
+    """Class to handle CobaltStrike Token Content."""
+
     def __init__(self, token_callback, end_callback):
+        """Initialize data members."""
         ContentHandler.__init__(self)
         self.token_callback = token_callback
         self.end_callback = end_callback
@@ -68,6 +74,7 @@ class CobaltStrikeTokensContentHandler(ContentHandler):
         self.chars = ""
 
     def startElement(self, name, attrs):
+        """Allocate currentToken."""
         # clear characters buffer
         self.chars = ""
         if not self.is_tokensFile:
@@ -81,6 +88,7 @@ class CobaltStrikeTokensContentHandler(ContentHandler):
             self.currentToken = dict()
 
     def endElement(self, name):
+        """Assign Token data members."""
         if name == "entry":
             self.token_callback(self.currentToken)
         elif name == "token":
@@ -95,11 +103,15 @@ class CobaltStrikeTokensContentHandler(ContentHandler):
             self.end_callback()
 
     def characters(self, content):
+        """Assign content to chars."""
         self.chars += content
 
 
 class CobaltStrikeSentEmailsContentHandler(ContentHandler):
+    """Class to handle Sent Email Content."""
+
     def __init__(self, email_callback, end_callback):
+        """Initialize data members."""
         ContentHandler.__init__(self)
         self.email_callback = email_callback
         self.end_callback = end_callback
@@ -108,6 +120,7 @@ class CobaltStrikeSentEmailsContentHandler(ContentHandler):
         self.chars = ""
 
     def startElement(self, name, attrs):
+        """Allocate currentEmail."""
         # clear characters buffer
         self.chars = ""
         if not self.is_sentemailsFile:
@@ -121,6 +134,7 @@ class CobaltStrikeSentEmailsContentHandler(ContentHandler):
             self.currentEmail = dict()
 
     def endElement(self, name):
+        """Assign currentEmail data members."""
         if name == "entry":
             self.email_callback(self.currentEmail)
         elif name == "token":
@@ -137,11 +151,15 @@ class CobaltStrikeSentEmailsContentHandler(ContentHandler):
             self.end_callback()
 
     def characters(self, content):
+        """Assign content to chars."""
         self.chars += content
 
 
 class CobaltStrikeWebHitsContentHandler(ContentHandler):
+    """Class to handle Web Hits Content."""
+
     def __init__(self, webhits_callback, end_callback):
+        """Initialize data members."""
         ContentHandler.__init__(self)
         self.webhits_callback = webhits_callback
         self.end_callback = end_callback
@@ -150,6 +168,7 @@ class CobaltStrikeWebHitsContentHandler(ContentHandler):
         self.chars = ""
 
     def startElement(self, name, attrs):
+        """Allocate currentWebHit."""
         # clear characters buffer
         self.chars = ""
         if not self.is_webhitsFile:
@@ -163,6 +182,7 @@ class CobaltStrikeWebHitsContentHandler(ContentHandler):
             self.currentWebhit = dict()
 
     def endElement(self, name):
+        """Assign currentWebHit data members."""
         if name == "entry":
             self.webhits_callback(self.currentWebhit)
         elif name == "token":
@@ -179,11 +199,15 @@ class CobaltStrikeWebHitsContentHandler(ContentHandler):
             self.end_callback()
 
     def characters(self, content):
+        """Assign content to chars."""
         self.chars += content
 
 
 class CobaltStrikeApplicationsContentHandler(ContentHandler):
+    """Class to handle Applications Content."""
+
     def __init__(self, applications_callback, end_callback):
+        """Initialize data members."""
         ContentHandler.__init__(self)
         self.applications_callback = applications_callback
         self.end_callback = end_callback
@@ -192,6 +216,7 @@ class CobaltStrikeApplicationsContentHandler(ContentHandler):
         self.chars = ""
 
     def startElement(self, name, attrs):
+        """Allocate current Application."""
         # clear characters buffer
         self.chars = ""
         if not self.is_applicationsFile:
@@ -205,6 +230,7 @@ class CobaltStrikeApplicationsContentHandler(ContentHandler):
             self.currentApplication = dict()
 
     def endElement(self, name):
+        """Assign currentApplication data members."""
         if name == "entry":
             self.applications_callback(self.currentApplication)
         elif name == "id":
@@ -222,11 +248,14 @@ class CobaltStrikeApplicationsContentHandler(ContentHandler):
         elif name == "internal":
             try:  # internal_ip is not guaranteed to be present or may be 'unknown'/'null'
                 internal_ip = ipaddress.ip_address(self.chars)
-                self.currentApplication["internal_ip"] = self.chars
-            except:
+                if internal_ip is None:
+                    raise TypeError
+                self.currentApplication["internal_ip"] = internal_ip
+            except TypeError:
                 self.currentApplication["internal_ip"] = None
         elif name == "applications":
             self.end_callback()
 
     def characters(self, content):
+        """Assign content to chars."""
         self.chars += content

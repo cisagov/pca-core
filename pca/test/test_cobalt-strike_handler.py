@@ -1,17 +1,29 @@
 #!/usr/bin/env py.test -vs
+"""pca/test/test_cobalt-strike_handler.py."""
 
+# Standard Python Libraries
+import datetime
 import os
 import sys
+
+# Third-Party Libraries
+# from xml.sax import parse
+from defusedxml.sax import parse
+import pytest
+
+# cisagov Libraries
+from pca.handlers.cobaltstrike_handler import (
+    CobaltStrikeApplicationsContentHandler,
+    CobaltStrikeCampaignsContentHandler,
+    CobaltStrikeSentEmailsContentHandler,
+    CobaltStrikeTokensContentHandler,
+    CobaltStrikeWebHitsContentHandler,
+)
 
 me = os.path.realpath(__file__)
 myDir = os.path.dirname(me)
 sys.path.append(os.path.join(myDir, ".."))
 
-import pytest
-from pca.util import util
-from pca.handlers.cobaltstrike_handler import *
-from xml.sax import parse
-import datetime
 
 TEST_CS_CAMPAIGNS_FILENAME = "test_XMLData/campaigns.xml"
 TEST_CS_TOKENS_FILENAME = "test_XMLData/tokens.xml"
@@ -21,6 +33,7 @@ TEST_CS_APPLICATIONS_FILENAME = "test_XMLData/applications.xml"
 
 
 def pytest_runtest_makereport(item, call):
+    """Make report."""
     if "incremental" in item.keywords:
         if call.excinfo is not None:
             parent = item.parent
@@ -28,6 +41,7 @@ def pytest_runtest_makereport(item, call):
 
 
 def pytest_runtest_setup(item):
+    """Test setup."""
     if "incremental" in item.keywords:
         previousfailed = getattr(item.parent, "_previousfailed", None)
         if previousfailed is not None:
@@ -38,26 +52,33 @@ class YourMom(object):
     """You should call back your Mom.  This test does."""
 
     def __init__(self):
+        """Initialize YourMom."""
         self.elements = []
         self.end_callback_call_count = 0
 
     def element_callback(self, parsed_element):
+        """Append parsed element."""
         # print 'X' * 80            # Enable these lines for visibility into each parsed element
         # util.pp(parsed_element)   # Enable these lines for visibility into each parsed element
         self.elements.append(parsed_element)
 
     def end_callback(self):
+        """Increment call count."""
         self.end_callback_call_count += 1
 
 
 @pytest.fixture(scope="session")
 def your_moms_campaigns():
+    """Return YourMom."""
     return YourMom()
 
 
 @pytest.mark.incremental
 class TestCSCampaignsHandler:
+    """Class to test CobaltStrikeCampaignHandler."""
+
     def test_parse(self, your_moms_campaigns):
+        """Initialize handler."""
         # py.test doesn't allow __init__
         handler = CobaltStrikeCampaignsContentHandler(
             your_moms_campaigns.element_callback, your_moms_campaigns.end_callback
@@ -67,16 +88,19 @@ class TestCSCampaignsHandler:
         f.close()
 
     def test_correct_number_of_end_callbacks(self, your_moms_campaigns):
+        """Test for the correct number of end callbacks."""
         assert (
             your_moms_campaigns.end_callback_call_count == 1
         ), "unexpected number of end callbacks"
 
     def test_correct_number_of_elements(self, your_moms_campaigns):
+        """Test for the correct number of campaigns."""
         assert (
             len(your_moms_campaigns.elements) == 1
         ), "unexpected number of campaigns parsed"
 
     def test_first_element_data_check(self, your_moms_campaigns):
+        """Test that Campaign data is correctly assigned."""
         assert (
             your_moms_campaigns.elements[0]["_id"]
             == "28fc34fa-51be-4518-a7be-656cbdf01ae7"
@@ -97,12 +121,16 @@ class TestCSCampaignsHandler:
 
 @pytest.fixture(scope="session")
 def your_moms_tokens():
+    """Return YourMom."""
     return YourMom()
 
 
 @pytest.mark.incremental
 class TestCSTokensHandler:
+    """Class to test CobaltStrikeTokensHandler."""
+
     def test_parse(self, your_moms_tokens):
+        """Initialize handler."""
         # py.test doesn't allow __init__
         handler = CobaltStrikeTokensContentHandler(
             your_moms_tokens.element_callback, your_moms_tokens.end_callback
@@ -112,16 +140,19 @@ class TestCSTokensHandler:
         f.close()
 
     def test_correct_number_of_end_callbacks(self, your_moms_tokens):
+        """Test for the correct number of end callbacks."""
         assert (
             your_moms_tokens.end_callback_call_count == 1
         ), "unexpected number of end callbacks"
 
     def test_correct_number_of_elements(self, your_moms_tokens):
+        """Test for the correct number of tokens."""
         assert (
             len(your_moms_tokens.elements) == 61
         ), "unexpected number of tokens parsed"
 
     def test_first_element_data_check(self, your_moms_tokens):
+        """Test that Token data is correctly assigned."""
         assert (
             your_moms_tokens.elements[0]["campaign"]
             == "28fc34fa-51be-4518-a7be-656cbdf01ae7"
@@ -137,12 +168,16 @@ class TestCSTokensHandler:
 
 @pytest.fixture(scope="session")
 def your_moms_emails():
+    """Return emails."""
     return YourMom()
 
 
 @pytest.mark.incremental
 class TestCSSentEmailsHandler:
+    """Class to test CobaltStrikeSentEmailsHandler."""
+
     def test_parse(self, your_moms_emails):
+        """Initialize handler."""
         # py.test doesn't allow __init__
         handler = CobaltStrikeSentEmailsContentHandler(
             your_moms_emails.element_callback, your_moms_emails.end_callback
@@ -152,16 +187,19 @@ class TestCSSentEmailsHandler:
         f.close()
 
     def test_correct_number_of_end_callbacks(self, your_moms_emails):
+        """Test for the correct number of end callbacks."""
         assert (
             your_moms_emails.end_callback_call_count == 1
         ), "unexpected number of end callbacks"
 
     def test_correct_number_of_elements(self, your_moms_emails):
+        """Test for the correct number of emails."""
         assert (
             len(your_moms_emails.elements) == 61
         ), "unexpected number of emails parsed"
 
     def test_first_element_data_check(self, your_moms_emails):
+        """Test that email data is correctly assigned."""
         assert (
             your_moms_emails.elements[0]["token"] == "25b0f8b5407f"
         ), "unexpected token for email 0"
@@ -181,12 +219,16 @@ class TestCSSentEmailsHandler:
 
 @pytest.fixture(scope="session")
 def your_moms_webhits():
+    """Return YourMom."""
     return YourMom()
 
 
 @pytest.mark.incremental
 class TestCSSWebhitsHandler:
+    """Class to test CobaltStrikeWebHitsHandler."""
+
     def test_parse(self, your_moms_webhits):
+        """Initialize handler."""
         # py.test doesn't allow __init__
         handler = CobaltStrikeWebHitsContentHandler(
             your_moms_webhits.element_callback, your_moms_webhits.end_callback
@@ -196,16 +238,19 @@ class TestCSSWebhitsHandler:
         f.close()
 
     def test_correct_number_of_end_callbacks(self, your_moms_webhits):
+        """Test for the correct number of end callbacks."""
         assert (
             your_moms_webhits.end_callback_call_count == 1
         ), "unexpected number of end callbacks"
 
     def test_correct_number_of_elements(self, your_moms_webhits):
+        """Test for the correct number of webhits."""
         assert (
             len(your_moms_webhits.elements) == 82
         ), "unexpected number of webhits parsed"
 
     def test_first_element_data_check(self, your_moms_webhits):
+        """Test that email data is correctly assigned."""
         assert your_moms_webhits.elements[0][
             "time"
         ] == datetime.datetime.utcfromtimestamp(
@@ -221,12 +266,16 @@ class TestCSSWebhitsHandler:
 
 @pytest.fixture(scope="session")
 def your_moms_applications():
+    """Return YourMom."""
     return YourMom()
 
 
 @pytest.mark.incremental
 class TestCSSApplicationsHandler:
+    """Class to test CobaltStrikeApplicationsContentHandler."""
+
     def test_parse(self, your_moms_applications):
+        """Initialize handler."""
         # py.test doesn't allow __init__
         handler = CobaltStrikeApplicationsContentHandler(
             your_moms_applications.element_callback, your_moms_applications.end_callback
@@ -236,16 +285,19 @@ class TestCSSApplicationsHandler:
         f.close()
 
     def test_correct_number_of_end_callbacks(self, your_moms_applications):
+        """Test for the correct number of end callbacks."""
         assert (
             your_moms_applications.end_callback_call_count == 1
         ), "unexpected number of end callbacks"
 
     def test_correct_number_of_elements(self, your_moms_applications):
+        """Test for the correct number of applications."""
         assert (
             len(your_moms_applications.elements) == 48
         ), "unexpected number of applications parsed"
 
     def test_first_element_data_check(self, your_moms_applications):
+        """Test that application data is correctly assigned."""
         assert (
             your_moms_applications.elements[0]["token"] == "d993a68bf4e7"
         ), "unexpected token for application 0"
@@ -264,5 +316,5 @@ class TestCSSApplicationsHandler:
             your_moms_applications.elements[0]["external_ip"] == "192.168.168.254"
         ), "unexpected external_ip for application 0"
         assert (
-            your_moms_applications.elements[0]["internal_ip"] == None
+            your_moms_applications.elements[0]["internal_ip"] is None
         ), "unexpected internal_ip for application 0"

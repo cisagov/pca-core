@@ -1,3 +1,4 @@
-from .common import *
+"""pca/core/__init__.py ."""
+from .common import Indicator
 
-__all__ = common.__all__
+__all__ = Indicator

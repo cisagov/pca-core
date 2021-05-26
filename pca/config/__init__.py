@@ -1,3 +1,4 @@
-from .config import *
+"""pca/config/__init__.py."""
+from .config import Config
 
-__all__ = config.__all__
+__all__ = Config
