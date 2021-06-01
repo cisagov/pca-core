@@ -8,6 +8,7 @@ __all__ = [
     "ApplicationDoc",
     "ImageDoc",
     "TemplateDoc",
+    "UserReportDoc"
 ]
 
 from pymongo.errors import OperationFailure
@@ -28,6 +29,7 @@ CLICK_COLLECTION = "clicks"
 APPLICATION_COLLECTION = "applications"
 IMAGE_COLLECTION = "images"
 TEMPLATE_COLLECTION = "templates"
+USER_REPORT_COLLECTION = "user_reports"
 
 
 class RootDoc(MongoModel):
@@ -84,7 +86,7 @@ class CustomerDoc(RootDoc):
         collection_name = CUSTOMER_COLLECTION
         final = True  # so we don't get a '_cls' field in these documents (e.g. "_cls" : "__main__.Customer")
 
-    def get_all_customers():
+    def get_all_customers(self):
         query_set = CustomerDoc.objects.all().order_by([("_id", 1)])
         all_customers = []
         for customer in query_set:
@@ -417,3 +419,36 @@ class ApplicationDoc(RootDoc):
         else:
             self.internal_ip_int = None  # IPv6 integer representations are too large to store in MongoDB currently
         super(ApplicationDoc, self).save(*args, **kwargs)
+
+class UserReportDoc(RootDoc):
+    """Provides schema for User Report doc."""
+
+    customer = fields.ReferenceField(CustomerDoc, required=True)
+    assessment = fields.ReferenceField(AssessmentDoc, required=True)
+    campaign = fields.ReferenceField(CampaignDoc, required=True)
+    first_report = fields.DateTimeField(blank=True)
+    total_num_reports = fields.IntegerField(blank=True)
+
+    class Meta:
+        """Meta class for UserReportDoc."""
+
+        collection_name = USER_REPORT_COLLECTION
+        final = True
+        ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc
+
+    def find_by_customer_campaign(self, customer_id, campaign_id):
+        """Retrieve UserReport by customer and campaign."""
+        try:
+            doc = UserReportDoc.objects.raw(
+                {
+                    "customer": customer_id,
+                    "assessment": campaign_id,
+                }
+            ).first()
+        except DoesNotExist:
+            return None
+        return doc
+
+    def save(self, *args, **kwargs):
+        """Save UserReportDoc to MongoDB."""
+        super(UserReportDoc, self).save(*args, **kwargs)
