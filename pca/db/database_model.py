@@ -86,7 +86,7 @@ class CustomerDoc(RootDoc):
         collection_name = CUSTOMER_COLLECTION
         final = True  # so we don't get a '_cls' field in these documents (e.g. "_cls" : "__main__.Customer")
 
-    def get_all_customers(self):
+    def get_all_customers():
         query_set = CustomerDoc.objects.all().order_by([("_id", 1)])
         all_customers = []
         for customer in query_set:
