@@ -779,9 +779,9 @@ def import_template_file(template_filename, template_id=None, force=False):
 
 def user_report_already_exists(customer_id, assessment_id, campaign_id):
     try:
-        CustomerDoc.objects.raw({"customer": customer_id,
+        UserReportDoc.objects.raw({"customer": customer_id,
                                  "assessment": assessment_id,
-                                 "campaign": campaign_id}).first()
+                                 "campaign": campaign_id})
         return True
     except DoesNotExist:
         return False
@@ -814,6 +814,7 @@ def import_user_report(request, source, force=False):
             request["customer"], request["assessment"], request["campaign"]))
         print("Use --force to destroy the currently stored document")
         print("and replace it with the imported version.")
+        return False
     doc = UserReportDoc.from_document(request)
     doc.first_report = doc.first_report.replace(tzinfo=tz.tzutc())
     doc.save()
