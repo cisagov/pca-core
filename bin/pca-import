@@ -8,6 +8,7 @@ Usage:
   pca-import [--section SECTION] [--force] (--user-labels | --methodology) ASSESSMENT_ID FILE
   pca-import [--section SECTION] [--force] --image IMAGE_FILE (landing-page [IMAGE_URL] | sent-email | link-warning) <CAMPAIGN_ID>...
   pca-import [--section SECTION] [--force] --template FILE [TEMPLATE_ID]
+  pca-import [--section SECTION] [--force] --user-report [FILE]
   pca-import --sample-customer | --sample-assessment | --sample-template
   pca-import (-h | --help)
   pca-import --version
@@ -23,6 +24,7 @@ Options:
   -m --methodology               Import a text file containing specific methodology details.
   -i --image                     Import an image file and associate it with one or more campaigns.
   -t --template                  Import a phishing email template YAML file.
+  -u --user-report               Import a user report JSON file.
   --sample-customer              Output a sample customer template JSON file.
   --sample-assessment            Output a sample assessment template JSON file.
   --sample-template              Output a sample phishing email template YAML file.
@@ -170,27 +172,29 @@ def import_assessment(request, source, force=False):
     return True
 
 
-def import_json_file(filename, force, customerImport, assessmentImport):
+def import_json_file(filename, force, customer_import, assessment_import, user_report_import):
     f = open(filename, "rb")
     request = json.load(f)
     f.close()
-    if customerImport:
+    if customer_import:
         return import_customer(request, filename, force)
-    elif assessmentImport:
+    elif assessment_import:
         return import_assessment(request, filename, force)
+    elif user_report_import:
+        return import_user_report(request, filename, force)
 
 
-def import_json_stdin(force, customerImport, assessmentImport):
+def import_json_stdin(force, customer_import, assessment_import):
     request = json.load(sys.stdin)
-    if customerImport:
+    if customer_import:
         return import_customer(request, "from stdin", force)
-    elif assessmentImport:
+    elif assessment_import:
         return import_assessment(request, "from stdin", force)
 
 
-def add_labels_to_user(label_list, user_id, force, assessmentDoc):
+def add_labels_to_user(label_list, user_id, force, assessment_doc):
     try:
-        userDoc = UserDoc.objects.raw({"_id": user_id}).first()
+        user_doc = UserDoc.objects.raw({"_id": user_id}).first()
     except DoesNotExist:
         print(
             "Cannot add labels to user {} because the user does not exist in the database".format(
@@ -200,38 +204,38 @@ def add_labels_to_user(label_list, user_id, force, assessmentDoc):
         print("  Skipping this user")
         return False
 
-    if userDoc.customer != assessmentDoc.customer:
+    if user_doc.customer != assessment_doc.customer:
         print("Customer mismatch between user and asssessment")
         print(
             "  User {} is associated with customer {}".format(
-                user_id, userDoc.customer._id
+                user_id, user_doc.customer._id
             )
         )
         print(
             "  Assessment {} is associated with customer {}".format(
-                assessmentDoc._id, assessmentDoc.customer._id
+                assessment_doc._id, assessment_doc.customer._id
             )
         )
         print("  Skipping this user")
         return False
 
-    if not force and userDoc.customer_defined_labels.get(assessmentDoc._id):
+    if not force and user_doc.customer_defined_labels.get(assessment_doc._id):
         print(
             "Cannot add labels to user {} because labels ({}) already exist for assessment {}".format(
                 user_id,
-                userDoc.customer_defined_labels[assessmentDoc._id],
-                assessmentDoc._id,
+                user_doc.customer_defined_labels[assessment_doc._id],
+                assessment_doc._id,
             )
         )
         print("  Use --force to overwrite the labels")
         return False
     else:
-        userDoc.customer_defined_labels[assessmentDoc._id] = label_list
-        userDoc.save()
+        user_doc.customer_defined_labels[assessment_doc._id] = label_list
+        user_doc.save()
         return True
 
 
-def import_user_labels_file(filename, force, assessmentDoc):
+def import_user_labels_file(filename, force, assessment_doc):
     user_labels_file = open(filename, "r")
     header_line = (
         user_labels_file.readline()
@@ -244,31 +248,31 @@ def import_user_labels_file(filename, force, assessmentDoc):
             if label:
                 label_set.add(label)  # Use a set to handle any duplicate labels
         if label_set:
-            if add_labels_to_user(list(label_set), email_hash, force, assessmentDoc):
+            if add_labels_to_user(list(label_set), email_hash, force, assessment_doc):
                 users_updated += 1
     print("Successfully added labels to {} users".format(users_updated))
     return True
 
 
-def import_methodology_file(filename, force, assessmentDoc):
-    if not force and assessmentDoc.methodology_text:
+def import_methodology_file(filename, force, assessment_doc):
+    if not force and assessment_doc.methodology_text:
         print(
             "Cannot add methodology text because it already exists for assessment {}".format(
-                assessmentDoc._id
+                assessment_doc._id
             )
         )
         print("  Use --force to overwrite the existing methodology text:")
-        print("------\n{}\n------".format(assessmentDoc.methodology_text))
+        print("------\n{}\n------".format(assessment_doc.methodology_text))
         return False
     else:
         methodology_file = open(filename, "r")
-        assessmentDoc.methodology_text = (
+        assessment_doc.methodology_text = (
             methodology_file.read()
         )  # TODO Any validation needed here?
-        assessmentDoc.save()
+        assessment_doc.save()
         print(
             "Successfully added methodology text to assessment {}".format(
-                assessmentDoc._id
+                assessment_doc._id
             )
         )
         return True
@@ -297,7 +301,7 @@ def campaign_already_exists(campaign_id):
 
 
 def import_campaign(
-    campaign, assessmentDoc, campaigns_file, campaign_end_date, templateDoc, force=False
+    campaign, assessment_doc, campaigns_file, campaign_end_date, template_doc, force=False
 ):
     if not force and campaign_already_exists(campaign["_id"]):
         print("Cannot import, campaign already exists: {}".format(campaign["_id"]))
@@ -307,10 +311,10 @@ def import_campaign(
     doc = CampaignDoc.from_document(campaign)
     doc.start_time = doc.start_time.replace(tzinfo=tz.tzutc())
     doc.end_time = campaign_end_date
-    doc.customer = assessmentDoc.customer
-    doc.assessment = assessmentDoc._id
+    doc.customer = assessment_doc.customer
+    doc.assessment = assessment_doc._id
     doc.users = list()
-    doc.template = templateDoc._id
+    doc.template = template_doc._id
     doc.images = dict()
     doc.save()
     print("Imported campaign {} from {}".format(doc._id, campaigns_file))
@@ -318,7 +322,7 @@ def import_campaign(
 
 
 def import_cs_campaigns_file(
-    force, campaigns_file, assessmentDoc, campaign_end_date, templateDoc
+    force, campaigns_file, assessment_doc, campaign_end_date, template_doc
 ):
     myImporter = PCA_Importer()
     handler = CobaltStrikeCampaignsContentHandler(
@@ -331,10 +335,10 @@ def import_cs_campaigns_file(
     for campaign in myImporter.elements:
         campaign_id = import_campaign(
             campaign,
-            assessmentDoc,
+            assessment_doc,
             campaigns_file,
             campaign_end_date,
-            templateDoc,
+            template_doc,
             force,
         )
         if not campaign_id:
@@ -366,10 +370,10 @@ def import_user(user, customer_id, force=False):
     return True
 
 
-def import_cs_tokens_file(force, tokens_file, assessmentDoc):
-    myImporter = PCA_Importer()
+def import_cs_tokens_file(force, tokens_file, assessment_doc):
+    my_importer = PCA_Importer()
     handler = CobaltStrikeTokensContentHandler(
-        myImporter.element_callback, myImporter.end_callback
+        my_importer.element_callback, my_importer.end_callback
     )
     f = open(tokens_file, "rb")
     sax.parse(f, handler)
@@ -381,8 +385,8 @@ def import_cs_tokens_file(force, tokens_file, assessmentDoc):
         lambda: set()
     )  # this is how we will track which users belong to which campaign
     new_users_imported = 0
-    for user in myImporter.elements:
-        if import_user(user, assessmentDoc.customer, force):
+    for user in my_importer.elements:
+        if import_user(user, assessment_doc.customer, force):
             new_users_imported += 1
         token_dict[user["token"]] = {
             "user": user["email_hash"],
@@ -430,21 +434,21 @@ def import_email(email, user_id, force=False):
     return True
 
 
-def import_cs_sent_emails_file(force, sent_emails_file, assessmentDoc, token_dict):
-    myImporter = PCA_Importer()
+def import_cs_sent_emails_file(force, sent_emails_file, assessment_doc, token_dict):
+    my_importer = PCA_Importer()
     handler = CobaltStrikeSentEmailsContentHandler(
-        myImporter.element_callback, myImporter.end_callback
+        my_importer.element_callback, my_importer.end_callback
     )
     f = open(sent_emails_file, "rb")
     sax.parse(f, handler)
     f.close()
-    for email in myImporter.elements:
-        email["customer"] = assessmentDoc.customer
-        email["assessment"] = assessmentDoc._id
+    for email in my_importer.elements:
+        email["customer"] = assessment_doc.customer
+        email["assessment"] = assessment_doc._id
         user_id = token_dict[email["token"]]["user"]
         import_email(email, user_id, force)
     print(
-        "Imported {} emails from {}".format(len(myImporter.elements), sent_emails_file)
+        "Imported {} emails from {}".format(len(my_importer.elements), sent_emails_file)
     )
 
 
@@ -477,18 +481,18 @@ def import_click(click, user_id, campaign_id, force=False):
 
 
 def import_cs_web_hits_file(
-    force, web_hits_file, assessmentDoc, token_dict, campaign_ids
+    force, web_hits_file, assessment_doc, token_dict, campaign_ids
 ):
-    myImporter = PCA_Importer()
+    my_importer = PCA_Importer()
     handler = CobaltStrikeWebHitsContentHandler(
-        myImporter.element_callback, myImporter.end_callback
+        my_importer.element_callback, my_importer.end_callback
     )
     f = open(web_hits_file, "rb")
     sax.parse(f, handler)
     f.close()
-    for click in myImporter.elements:
-        click["customer"] = assessmentDoc.customer
-        click["assessment"] = assessmentDoc._id
+    for click in my_importer.elements:
+        click["customer"] = assessment_doc.customer
+        click["assessment"] = assessment_doc._id
         if token_dict.get(click["token"]):  # token is NOT guaranteed to be present
             user_id = token_dict[click["token"]]["user"]
             campaign_id = token_dict[click["token"]]["campaign"]
@@ -499,7 +503,7 @@ def import_cs_web_hits_file(
             ):  # if there's only 1 campaign_id, then we know which campaign to use
                 campaign_id = campaign_ids[0]
         import_click(click, user_id, campaign_id, force)
-    print("Imported {} clicks from {}".format(len(myImporter.elements), web_hits_file))
+    print("Imported {} clicks from {}".format(len(my_importer.elements), web_hits_file))
 
 
 def import_application(application, user_id, campaign_id, force=False):
@@ -534,18 +538,18 @@ def import_application(application, user_id, campaign_id, force=False):
 
 
 def import_cs_applications_file(
-    force, applications_file, assessmentDoc, token_dict, campaign_ids
+    force, applications_file, assessment_doc, token_dict, campaign_ids
 ):
-    myImporter = PCA_Importer()
+    my_importer = PCA_Importer()
     handler = CobaltStrikeApplicationsContentHandler(
-        myImporter.element_callback, myImporter.end_callback
+        my_importer.element_callback, my_importer.end_callback
     )
     f = open(applications_file, "rb")
     sax.parse(f, handler)
     f.close()
-    for application in myImporter.elements:
-        application["customer"] = assessmentDoc.customer
-        application["assessment"] = assessmentDoc._id
+    for application in my_importer.elements:
+        application["customer"] = assessment_doc.customer
+        application["assessment"] = assessment_doc._id
         if token_dict.get(
             application["token"]
         ):  # valid token is NOT guaranteed to be present
@@ -560,45 +564,45 @@ def import_cs_applications_file(
         import_application(application, user_id, campaign_id, force)
     print(
         "Imported {} applications from {}".format(
-            len(myImporter.elements), applications_file
+            len(my_importer.elements), applications_file
         )
     )
 
 
 def import_cs_xml_files(
-    force, cs_xml_dir, assessmentDoc, campaign_end_date, templateDoc
+    force, cs_xml_dir, assessment_doc, campaign_end_date, template_doc
 ):
     # import Cobalt Strike XML files
     campaign_ids = import_cs_campaigns_file(
         force,
         os.path.join(cs_xml_dir, CS_XML_CAMPAIGNS_FILE),
-        assessmentDoc,
+        assessment_doc,
         campaign_end_date,
-        templateDoc,
+        template_doc,
     )
     if not campaign_ids:
         return False
     else:
         token_dict = import_cs_tokens_file(
-            force, os.path.join(cs_xml_dir, CS_XML_TOKENS_FILE), assessmentDoc
+            force, os.path.join(cs_xml_dir, CS_XML_TOKENS_FILE), assessment_doc
         )
         import_cs_sent_emails_file(
             force,
             os.path.join(cs_xml_dir, CS_XML_SENT_EMAILS_FILE),
-            assessmentDoc,
+            assessment_doc,
             token_dict,
         )
         import_cs_web_hits_file(
             force,
             os.path.join(cs_xml_dir, CS_XML_WEB_HITS_FILE),
-            assessmentDoc,
+            assessment_doc,
             token_dict,
             campaign_ids,
         )
         import_cs_applications_file(
             force,
             os.path.join(cs_xml_dir, CS_XML_APPLICATIONS_FILE),
-            assessmentDoc,
+            assessment_doc,
             token_dict,
             campaign_ids,
         )
@@ -622,10 +626,10 @@ def import_image(
     elif link_warning:
         image_class = "link-warning"
 
-    imageDoc = None
+    image_doc = None
     for campaign_id in campaign_id_list:
         try:
-            campaignDoc = CampaignDoc.objects.raw({"_id": campaign_id}).first()
+            campaign_doc = CampaignDoc.objects.raw({"_id": campaign_id}).first()
         except DoesNotExist:
             print(
                 "Cannot assign {} image, campaign does not exist: {}\n".format(
@@ -634,9 +638,9 @@ def import_image(
             )
             continue
 
-        if campaignDoc.images.get(image_class) and not force:
+        if campaign_doc.images.get(image_class) and not force:
             campaign_image = ImageDoc.objects.raw(
-                {"_id": campaignDoc.images[image_class]}
+                {"_id": campaign_doc.images[image_class]}
             ).first()
             print(
                 "Cannot assign {} image to campaign {}".format(image_class, campaign_id)
@@ -653,30 +657,30 @@ def import_image(
             )
             continue
         else:
-            if not imageDoc:
-                imageDoc = ImageDoc()
-                imageDoc.data = open(image_filename, "rb")
-                imageDoc.filename = os.path.basename(image_filename)
+            if not image_doc:
+                image_doc = ImageDoc()
+                image_doc.data = open(image_filename, "rb")
+                image_doc.filename = os.path.basename(image_filename)
                 if image_url:
-                    imageDoc.url = image_url
+                    image_doc.url = image_url
                 else:
-                    imageDoc.url = ""
-                imageDoc.img_class = image_class
-                imageDoc.save()  # _id is assigned after save() completes
+                    image_doc.url = ""
+                image_doc.img_class = image_class
+                image_doc.save()  # _id is assigned after save() completes
                 print(
                     "Successfully imported {} image from file: {} (image _id: {})\n".format(
-                        image_class, image_filename, imageDoc._id
+                        image_class, image_filename, image_doc._id
                     )
                 )
 
-            campaignDoc.images[image_class] = imageDoc._id
-            campaignDoc.save()
+            campaign_doc.images[image_class] = image_doc._id
+            campaign_doc.save()
             print(
                 "Successfully assigned {} image to campaign: {}\n".format(
-                    image_class, campaignDoc._id
+                    image_class, campaign_doc._id
                 )
             )
-    return imageDoc
+    return image_doc
 
 
 def import_template_file(template_filename, template_id=None, force=False):
@@ -773,6 +777,47 @@ def import_template_file(template_filename, template_id=None, force=False):
     )
     return True
 
+def user_report_already_exists(customer_id, assessment_id, campaign_id):
+    try:
+        CustomerDoc.objects.raw({"customer": customer_id,
+                                 "assessment": assessment_id,
+                                 "campaign": campaign_id}).first()
+        return True
+    except DoesNotExist:
+        return False
+
+def import_user_report(request, source, force=False):
+    if not customer_already_exists(request["customer"]):
+        print(
+            "Cannot import, customer_id does not exist: {}".format(
+                request["customer"]
+            )
+        )
+        return False
+    if not assessment_already_exists(request["assessment"]):
+        print(
+            "Cannot import, assessment_id does not exist: {}".format(
+                request["assessment"]
+            )
+        )
+        return False
+    if not campaign_already_exists(request["campaign"]):
+        print("Cannot import, campaign_id does not exist: {}".format(
+            request["campaign"]
+            )
+        )
+        return False
+    if not force and user_report_already_exists(request["customer"],
+                                                request["assessment"],
+                                                request["campaign"]):
+        print("Cannot import, user_report already exists: {} {} {}".format(
+            request["customer"], request["assessment"], request["campaign"]))
+        print("Use --force to destroy the currently stored document")
+        print("and replace it with the imported version.")
+    doc = UserReportDoc.from_document(request)
+    doc.first_report = doc.first_report.replace(tzinfo=tz.tzutc())
+    doc.save()
+    return True
 
 def main():
     if args["--sample-customer"]:
@@ -786,14 +831,14 @@ def main():
     # sys.exit(0)
 
     # TODO Investigate MongoModel.save(force_insert) - may work better than current '--force' setup
-    if args["--customer"] or args["--assessment"]:
+    if args["--customer"] or args["--assessment"] or args["--user-report"]:
         if args["FILE"] != None:
             success = import_json_file(
-                args["FILE"], args["--force"], args["--customer"], args["--assessment"]
+                args["FILE"], args["--force"], args["--customer"], args["--assessment"], args['--user-report']
             )
         else:
             success = import_json_stdin(
-                args["--force"], args["--customer"], args["--assessment"]
+                args["--force"], args["--customer"], args["--assessment"], args["--user-report"]
             )
     elif args["--image"]:
         success = import_image(
@@ -811,11 +856,11 @@ def main():
         )
     else:
         try:
-            assessmentDoc = AssessmentDoc.objects.raw(
+            assessment_doc = AssessmentDoc.objects.raw(
                 {"_id": args["ASSESSMENT_ID"]}
             ).first()
         except DoesNotExist:
-            assessmentDoc = None
+            assessment_doc = None
             print(
                 "Cannot import, assessment does not exist: {}".format(
                     args["ASSESSMENT_ID"]
@@ -823,14 +868,14 @@ def main():
             )
             success = False
 
-        if assessmentDoc:
+        if assessment_doc:
             if args["--user-labels"]:
                 success = import_user_labels_file(
-                    args["FILE"], args["--force"], assessmentDoc
+                    args["FILE"], args["--force"], assessment_doc
                 )
             elif args["--methodology"]:
                 success = import_methodology_file(
-                    args["FILE"], args["--force"], assessmentDoc
+                    args["FILE"], args["--force"], assessment_doc
                 )
             else:
                 try:
@@ -847,7 +892,7 @@ def main():
                     sys.exit(-1)
 
                 try:
-                    templateDoc = TemplateDoc.objects.raw(
+                    template_doc = TemplateDoc.objects.raw(
                         {"_id": ObjectId(args["TEMPLATE_ID"])}
                     ).first()
                 except InvalidId:
@@ -868,9 +913,9 @@ def main():
                 success = import_cs_xml_files(
                     args["--force"],
                     args["CS_XML_DIRECTORY"],
-                    assessmentDoc,
+                    assessment_doc,
                     campaign_end_date,
-                    templateDoc,
+                    template_doc,
                 )
 
     if not success:

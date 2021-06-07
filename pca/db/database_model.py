@@ -422,7 +422,6 @@ class ApplicationDoc(RootDoc):
 
 class UserReportDoc(RootDoc):
     """Provides schema for User Report doc."""
-
     customer = fields.ReferenceField(CustomerDoc, required=True)
     assessment = fields.ReferenceField(AssessmentDoc, required=True)
     campaign = fields.ReferenceField(CampaignDoc, required=True)
@@ -435,19 +434,6 @@ class UserReportDoc(RootDoc):
         collection_name = USER_REPORT_COLLECTION
         final = True
         ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc
-
-    def find_by_customer_campaign(self, customer_id, campaign_id):
-        """Retrieve UserReport by customer and campaign."""
-        try:
-            doc = UserReportDoc.objects.raw(
-                {
-                    "customer": customer_id,
-                    "assessment": campaign_id,
-                }
-            ).first()
-        except DoesNotExist:
-            return None
-        return doc
 
     def save(self, *args, **kwargs):
         """Save UserReportDoc to MongoDB."""
