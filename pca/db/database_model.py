@@ -421,12 +421,18 @@ class ApplicationDoc(RootDoc):
         super(ApplicationDoc, self).save(*args, **kwargs)
 
 class UserReportDoc(RootDoc):
-    """Provides schema for User Report doc."""
+    """Provides schema for User Report doc.
+    customer - a customer ID that corresponds to a CustomerDoc
+    assessment - an assessment ID that corresponds to an AssessmentDoc
+    campaign - a campaign ID that corresponds to a CampaignDoc
+    first_report - the first time a user responds to a phishing email. Optional, may not be available from GoPhish
+    total_num_reports - the total number of responses (reports) for a campaign.
+    """
     customer = fields.ReferenceField(CustomerDoc, required=True)
     assessment = fields.ReferenceField(AssessmentDoc, required=True)
     campaign = fields.ReferenceField(CampaignDoc, required=True)
     first_report = fields.DateTimeField(blank=True)
-    total_num_reports = fields.IntegerField(blank=True)
+    total_num_reports = fields.IntegerField(blank=False)
 
     class Meta:
         """Meta class for UserReportDoc."""
@@ -434,6 +440,16 @@ class UserReportDoc(RootDoc):
         collection_name = USER_REPORT_COLLECTION
         final = True
         ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc
+
+    def find_by_customer_assessment_campaign(customer_id, assessment_id, campaign_id):
+        try:
+            doc = UserReportDoc.objects.raw(
+                {"customer": customer_id,
+                 "assessment": assessment_id,
+                 "campaign": campaign_id}).first()
+        except DoesNotExist:
+            return None
+        return doc
 
     def save(self, *args, **kwargs):
         """Save UserReportDoc to MongoDB."""

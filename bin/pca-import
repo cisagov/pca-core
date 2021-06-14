@@ -184,12 +184,14 @@ def import_json_file(filename, force, customer_import, assessment_import, user_r
         return import_user_report(request, filename, force)
 
 
-def import_json_stdin(force, customer_import, assessment_import):
+def import_json_stdin(force, customer_import, assessment_import, user_report_import):
     request = json.load(sys.stdin)
     if customer_import:
         return import_customer(request, "from stdin", force)
     elif assessment_import:
         return import_assessment(request, "from stdin", force)
+    elif user_report_import:
+        return import_user_report(request, "from stdin", force)
 
 
 def add_labels_to_user(label_list, user_id, force, assessment_doc):
@@ -787,6 +789,7 @@ def user_report_already_exists(customer_id, assessment_id, campaign_id):
         return False
 
 def import_user_report(request, source, force=False):
+    user_report_id = None
     if not customer_already_exists(request["customer"]):
         print(
             "Cannot import, customer_id does not exist: {}".format(
@@ -807,15 +810,25 @@ def import_user_report(request, source, force=False):
             )
         )
         return False
-    if not force and user_report_already_exists(request["customer"],
-                                                request["assessment"],
-                                                request["campaign"]):
-        print("Cannot import, user_report already exists: {} {} {}".format(
-            request["customer"], request["assessment"], request["campaign"]))
-        print("Use --force to destroy the currently stored document")
-        print("and replace it with the imported version.")
-        return False
+
+    user_report = UserReportDoc.find_by_customer_assessment_campaign(request["customer"],
+                                                                     request["assessment"],
+                                                                     request["campaign"])
+    if user_report:
+        if force:
+            user_report_id = user_report._id
+        else:
+            print(
+                "Cannot import, user_report already exist - Customer: {} Assessment: {} Campaign: {}".format(
+                    request["customer"], request["assessment"],
+                    request["campaign"]))
+            print("Use --force to destroy the currently stored document")
+            print("and replace it with the imported version.")
+            return False
+
     doc = UserReportDoc.from_document(request)
+    if user_report_id:
+        doc._id = user_report_id
     doc.first_report = doc.first_report.replace(tzinfo=tz.tzutc())
     doc.save()
     return True
