@@ -425,8 +425,8 @@ class UserReportDoc(RootDoc):
     customer - a customer ID that corresponds to a CustomerDoc
     assessment - an assessment ID that corresponds to an AssessmentDoc
     campaign - a campaign ID that corresponds to a CampaignDoc
-    first_report - the first time a user responds to a phishing email. Optional, may not be available from GoPhish
-    total_num_reports - the total number of responses (reports) for a campaign.
+    first_report - the timestamp when the first user click ("report") was received during a phishing campaign
+    total_num_reports - the total number of user clicks ("reports") for a campaign
     """
     customer = fields.ReferenceField(CustomerDoc, required=True)
     assessment = fields.ReferenceField(AssessmentDoc, required=True)
