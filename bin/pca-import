@@ -819,7 +819,7 @@ def import_user_report(request, source, force=False):
             user_report_id = user_report._id
         else:
             print(
-                "Cannot import, user_report already exist - Customer: {} Assessment: {} Campaign: {}".format(
+                "Cannot import, user_report already exists - customer_id: {} assessment_id: {} campaign_id: {}".format(
                     request["customer"], request["assessment"],
                     request["campaign"]))
             print("Use --force to destroy the currently stored document")
