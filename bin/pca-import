@@ -58,7 +58,7 @@ import hashlib
 import yaml
 from bson import ObjectId
 from bson.errors import InvalidId
-
+from enum import Enum
 from pca.util import util
 from pca.handlers.cobaltstrike_handler import *
 from pca.core.common import INDICATOR_LOOKUP
@@ -69,6 +69,11 @@ CS_XML_SENT_EMAILS_FILE = "sentemails.xml"
 CS_XML_WEB_HITS_FILE = "webhits.xml"
 CS_XML_APPLICATIONS_FILE = "applications.xml"
 
+
+class ImportType(Enum):
+    customer = 1
+    assessment = 2
+    user_report = 3
 
 def output_customer_template():
     customer = dict()
@@ -172,25 +177,25 @@ def import_assessment(request, source, force=False):
     return True
 
 
-def import_json_file(filename, force, customer_import, assessment_import, user_report_import):
+def import_json_file(filename, force, import_type):
     f = open(filename, "rb")
     request = json.load(f)
     f.close()
-    if customer_import:
+    if import_type is ImportType.customer:
         return import_customer(request, filename, force)
-    elif assessment_import:
+    elif import_type is ImportType.assessment:
         return import_assessment(request, filename, force)
-    elif user_report_import:
+    elif import_type is ImportType.user_report:
         return import_user_report(request, filename, force)
 
 
-def import_json_stdin(force, customer_import, assessment_import, user_report_import):
+def import_json_stdin(force, import_type):
     request = json.load(sys.stdin)
-    if customer_import:
+    if import_type is ImportType.customer:
         return import_customer(request, "from stdin", force)
-    elif assessment_import:
+    elif import_type is ImportType.assessment:
         return import_assessment(request, "from stdin", force)
-    elif user_report_import:
+    elif import_type is ImportType.user_report:
         return import_user_report(request, "from stdin", force)
 
 
@@ -819,7 +824,7 @@ def import_user_report(request, source, force=False):
             user_report_id = user_report._id
         else:
             print(
-                "Cannot import, user_report already exist - Customer: {} Assessment: {} Campaign: {}".format(
+                "Cannot import, user_report already exists - Customer: {} Assessment: {} Campaign: {}".format(
                     request["customer"], request["assessment"],
                     request["campaign"]))
             print("Use --force to destroy the currently stored document")
@@ -844,15 +849,22 @@ def main():
     # import IPython; IPython.embed() #<<< BREAKPOINT >>>
     # sys.exit(0)
 
+    if args["--customer"]:
+        import_type = ImportType.customer
+    elif args["--assessment"]:
+        import_type = ImportType.assessment
+    elif args["--user-report"]:
+        import_type = ImportType.user_report
+
     # TODO Investigate MongoModel.save(force_insert) - may work better than current '--force' setup
     if args["--customer"] or args["--assessment"] or args["--user-report"]:
-        if args["FILE"] != None:
+        if args["FILE"] is not None:
             success = import_json_file(
-                args["FILE"], args["--force"], args["--customer"], args["--assessment"], args['--user-report']
+                args["FILE"], args["--force"], import_type
             )
         else:
             success = import_json_stdin(
-                args["--force"], args["--customer"], args["--assessment"], args["--user-report"]
+                args["--force"], import_type
             )
     elif args["--image"]:
         success = import_image(
