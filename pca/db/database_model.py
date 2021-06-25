@@ -432,7 +432,7 @@ class UserReportDoc(RootDoc):
     assessment = fields.ReferenceField(AssessmentDoc, required=True)
     campaign = fields.ReferenceField(CampaignDoc, required=True)
     first_report = fields.DateTimeField(blank=True)
-    total_num_reports = fields.IntegerField(blank=False)
+    total_num_reports = fields.IntegerField(required=True)
 
     class Meta:
         """Meta class for UserReportDoc."""
