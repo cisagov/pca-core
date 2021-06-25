@@ -425,7 +425,7 @@ class UserReportDoc(RootDoc):
     customer - a customer ID that corresponds to a CustomerDoc
     assessment - an assessment ID that corresponds to an AssessmentDoc
     campaign - a campaign ID that corresponds to a CampaignDoc
-    first_report - the timestamp when the first user a user click ("report") was received during a phishing campaign
+    first_report - the timestamp when the first user click ("report") was received during a phishing campaign
     total_num_reports - the total number of user clicks ("reports") for a campaign
     """
     customer = fields.ReferenceField(CustomerDoc, required=True)
