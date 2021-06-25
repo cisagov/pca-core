@@ -439,7 +439,7 @@ class UserReportDoc(RootDoc):
 
         collection_name = USER_REPORT_COLLECTION
         final = True
-        ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc
+        ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc, see https://github.com/cisagov/pca-core/issues/7
 
     def find_by_customer_assessment_campaign(customer_id, assessment_id, campaign_id):
         try:
