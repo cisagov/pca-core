@@ -11,6 +11,7 @@ Usage:
   pca-tool [--section SECTION] list-images [landing-page | sent-email | link-warning]
   pca-tool [--section SECTION] [--force] assign-image IMAGE_ID (landing-page | sent-email | link-warning) <CAMPAIGN_ID>...
   pca-tool [--section SECTION] (export-image | delete-image) IMAGE_ID
+  pca-tool [--section SECTION] output-user-reports CUSTOMER_ID ASSESSMENT_ID
   pca-tool (-h | --help)
   pca-tool --version
 
@@ -419,6 +420,21 @@ def delete_image(image_id):
     return True
 
 
+def output_user_reports(customer_id, assessment_id):
+    user_reports = list(UserReportDoc.objects.raw({"customer": customer_id,
+                                                   "assessment": assessment_id}).order_by([("_id", pymongo.ASCENDING)]))
+    if user_reports:
+        print("customer_id", "assessment_id", "campaign_id", "first_report", "total_num_reports")
+        for user_report in user_reports:
+            print('"{0.customer._id}", "{0.assessment._id}", "{0.campaign._id}", {0.first_report}, {0.total_num_reports}'.format(
+                user_report
+            ))
+        return True
+    else:
+        print("No user reports for customer {} and assessment {}".format(customer_id, assessment_id))
+        return False
+
+
 def main():
     if args["list-customers"]:
         success = output_customers()
@@ -453,6 +469,8 @@ def main():
         success = export_image(args["IMAGE_ID"])
     elif args["delete-image"]:
         success = delete_image(args["IMAGE_ID"])
+    elif args["output-user-reports"]:
+        success = output_user_reports(args["CUSTOMER_ID"], args["ASSESSMENT_ID"])
 
     # import IPython; IPython.embed() #<<< BREAKPOINT >>>
     # sys.exit(0)

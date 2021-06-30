@@ -8,6 +8,7 @@ __all__ = [
     "ApplicationDoc",
     "ImageDoc",
     "TemplateDoc",
+    "UserReportDoc"
 ]
 
 from pymongo.errors import OperationFailure
@@ -28,6 +29,7 @@ CLICK_COLLECTION = "clicks"
 APPLICATION_COLLECTION = "applications"
 IMAGE_COLLECTION = "images"
 TEMPLATE_COLLECTION = "templates"
+USER_REPORT_COLLECTION = "user_reports"
 
 
 class RootDoc(MongoModel):
@@ -417,3 +419,38 @@ class ApplicationDoc(RootDoc):
         else:
             self.internal_ip_int = None  # IPv6 integer representations are too large to store in MongoDB currently
         super(ApplicationDoc, self).save(*args, **kwargs)
+
+class UserReportDoc(RootDoc):
+    """Provides schema for User Report doc.
+    customer - a customer ID that corresponds to a CustomerDoc
+    assessment - an assessment ID that corresponds to an AssessmentDoc
+    campaign - a campaign ID that corresponds to a CampaignDoc
+    first_report - the timestamp when the first user click ("report") was received during a phishing campaign
+    total_num_reports - the total number of user clicks ("reports") for a campaign
+    """
+    customer = fields.ReferenceField(CustomerDoc, required=True)
+    assessment = fields.ReferenceField(AssessmentDoc, required=True)
+    campaign = fields.ReferenceField(CampaignDoc, required=True)
+    first_report = fields.DateTimeField(blank=True)
+    total_num_reports = fields.IntegerField(required=True)
+
+    class Meta:
+        """Meta class for UserReportDoc."""
+
+        collection_name = USER_REPORT_COLLECTION
+        final = True
+        ignore_unknown_fields = True  # TODO see if this can be inherited from RootDoc, see https://github.com/cisagov/pca-core/issues/7
+
+    def find_by_customer_assessment_campaign(customer_id, assessment_id, campaign_id):
+        try:
+            doc = UserReportDoc.objects.raw(
+                {"customer": customer_id,
+                 "assessment": assessment_id,
+                 "campaign": campaign_id}).first()
+        except DoesNotExist:
+            return None
+        return doc
+
+    def save(self, *args, **kwargs):
+        """Save UserReportDoc to MongoDB."""
+        super(UserReportDoc, self).save(*args, **kwargs)

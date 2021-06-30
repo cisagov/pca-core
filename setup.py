@@ -21,6 +21,7 @@ setup(
         "docopt >= 0.6.2",
         "PyYAML >= 3.12",
         "pillow >= 4.2",
+        "enum34 >= 1.1.10"
     ],
     extras_require={"dev": ["pytest", "ipython >= 7.0"],},
 )
