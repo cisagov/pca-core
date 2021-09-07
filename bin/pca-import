@@ -105,7 +105,7 @@ def output_assessment_template():
     assessment["team_lead"] = "Test Testerton"
     assessment["start_time"] = "2017-01-01"
     assessment["end_time"] = "2017-01-21"
-    print(util.to_json(assessment))
+    print(json.dumps(assessment, indent=True))
     sys.exit(0)
 
 
