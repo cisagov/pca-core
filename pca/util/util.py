@@ -101,8 +101,8 @@ def pp(obj):
     print(to_json(obj))
 
 
-def to_json(obj):
-    return json.dumps(obj, sort_keys=True, indent=4, default=custom_json_handler)
+def to_json(obj, sort_keys=True):
+    return json.dumps(obj, sort_keys=sort_keys, indent=4, default=custom_json_handler)
 
 
 def isXML(filename):
