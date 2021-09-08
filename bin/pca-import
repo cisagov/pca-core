@@ -105,7 +105,8 @@ def output_assessment_template():
     assessment["team_lead"] = "Test Testerton"
     assessment["start_time"] = "2017-01-01"
     assessment["end_time"] = "2017-01-21"
-    print(util.to_json(assessment,sort_keys=False))
+    print(util.to_json(assessment,sort_keys=False)) # Override default behavior to sort JSON key values
+                                                    # Values should be displayed in the order they were built in. 
     sys.exit(0)
 
 
