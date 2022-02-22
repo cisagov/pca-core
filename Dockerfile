@@ -1,4 +1,4 @@
-FROM python:3.7
+FROM python:3.9.5
 # Stay on python 3.7 until PyPi gets a version of pymodm that includes
 #   https://github.com/mongodb/pymodm/pull/64
 # Current pymodm version (0.4.2 - https://pypi.org/project/pymodm/)
